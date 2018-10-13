@@ -29,8 +29,8 @@ class PooledResultSet implements ResultSet
         return $this->result->advance();
     }
 
-    public function getCurrent(int $type = self::FETCH_ASSOC)
+    public function getCurrent(): array
     {
-        return $this->result->getCurrent($type);
+        return $this->result->getCurrent();
     }
 }
