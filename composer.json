@@ -13,7 +13,7 @@
     "require": {
         "php": ">=7",
         "amphp/amp": "^2",
-        "amphp/sql": "dev-master"
+        "amphp/sql": "^1"
     },
     "require-dev": {
         "amphp/php-cs-fixer-config": "dev-master",
