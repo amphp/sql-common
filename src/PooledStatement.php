@@ -29,6 +29,12 @@ abstract class PooledStatement implements Statement
      */
     abstract protected function createResultSet(ResultSet $resultSet, callable $release): ResultSet;
 
+    /**
+     * PooledStatement constructor.
+     *
+     * @param Statement $statement Statement object created by pooled connection.
+     * @param callable  $release Callable to be invoked when the statement and any associated results are destroyed.
+     */
     public function __construct(Statement $statement, callable $release)
     {
         $this->statement = $statement;

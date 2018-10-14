@@ -13,6 +13,10 @@ class PooledResultSet implements ResultSet
     /** @var callable */
     private $release;
 
+    /**
+     * @param ResultSet $result ResultSet object created by pooled connection or statement.
+     * @param callable  $release Callable to be invoked when the result set is destroyed.
+     */
     public function __construct(ResultSet $result, callable $release)
     {
         $this->result = $result;

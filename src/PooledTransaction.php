@@ -43,10 +43,8 @@ abstract class PooledTransaction implements Transaction
     abstract protected function createResultSet(ResultSet $resultSet, callable $release): ResultSet;
 
     /**
-     * PooledTransaction constructor.
-     *
-     * @param Transaction $transaction
-     * @param callable    $release
+     * @param Transaction $transaction Transaction object created by pooled connection.
+     * @param callable    $release Callable to be invoked when the transaction completes or is destroyed.
      */
     public function __construct(Transaction $transaction, callable $release)
     {
