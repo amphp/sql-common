@@ -45,9 +45,6 @@ abstract class ConnectionPool implements Pool
     /** @var Deferred|null */
     private $deferred;
 
-    /** @var callable */
-    private $prepare;
-
     /** @var int */
     private $pending = 0;
 
@@ -137,7 +134,6 @@ abstract class ConnectionPool implements Pool
 
         $this->connections = $connections = new \SplObjectStorage;
         $this->idle = $idle = new \SplQueue;
-        $this->prepare = coroutine($this->callableFromInstanceMethod("prepareStatement"));
 
         $idleTimeout = &$this->idleTimeout;
 
@@ -205,7 +201,6 @@ abstract class ConnectionPool implements Pool
             $connection->close();
         }
         $this->idle = new \SplQueue;
-        $this->prepare = null;
 
         if ($this->deferred instanceof Deferred) {
             $deferred = $this->deferred;
@@ -400,7 +395,11 @@ abstract class ConnectionPool implements Pool
     {
         return call(function () use ($sql) {
             $statement = yield from $this->prepareStatement($sql);
-            return $this->createStatementPool($this, $statement, $this->prepare);
+            return $this->createStatementPool(
+                $this,
+                $statement,
+                coroutine($this->callableFromInstanceMethod("prepareStatement"))
+            );
         });
     }
 
