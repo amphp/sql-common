@@ -216,8 +216,9 @@ abstract class ConnectionPool implements Pool
     {
         return call(function () {
             $connection = yield from $this->pop();
-            $this->connections->detach($connection);
-            return $connection;
+            return new ExtractedConnection($connection, function () use ($connection) {
+                $this->push($connection);
+            });
         });
     }
 
