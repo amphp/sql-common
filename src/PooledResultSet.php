@@ -25,12 +25,28 @@ class PooledResultSet implements ResultSet
 
     public function __destruct()
     {
-        ($this->release)();
+        if ($this->release !== null) {
+            ($this->release)();
+        }
     }
 
     public function advance(): Promise
     {
-        return $this->result->advance();
+        $promise = $this->result->advance();
+
+        $promise->onResolve(function (\Throwable $exception = null, bool $moreResults = null) {
+            if ($this->release === null) {
+                return;
+            }
+
+            if ($exception || !$moreResults) {
+                $release = $this->release;
+                $this->release = null;
+                $release();
+            }
+        });
+
+        return $promise;
     }
 
     public function getCurrent(): array
