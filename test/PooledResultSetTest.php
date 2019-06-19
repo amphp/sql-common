@@ -2,14 +2,8 @@
 
 namespace Amp\Sql\Common\Test;
 
-use Amp\Delayed;
 use Amp\Loop;
-use Amp\Promise;
-use Amp\Sql\Common\ConnectionPool;
 use Amp\Sql\Common\PooledResultSet;
-use Amp\Sql\ConnectionConfig;
-use Amp\Sql\Connector;
-use Amp\Sql\Link;
 use Amp\Sql\ResultSet;
 use Amp\Success;
 use PHPUnit\Framework\TestCase;
