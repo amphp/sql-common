@@ -14,12 +14,11 @@ use PHPUnit\Framework\TestCase;
 
 class ConnectionPoolTest extends TestCase
 {
-    /**
-     * @expectedException \Error
-     * @expectedExceptionMessage Pool must contain at least one connection
-     */
     public function testInvalidMaxConnections()
     {
+        $this->expectException(\Error::class);
+        $this->expectExceptionMessage('Pool must contain at least one connection');
+
         $mock = $this->getMockBuilder(ConnectionPool::class)
             ->setConstructorArgs([$this->createMock(ConnectionConfig::class), 0])
             ->getMock();

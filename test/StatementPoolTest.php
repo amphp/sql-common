@@ -4,13 +4,13 @@ namespace Amp\Sql\Common\Test;
 
 use Amp\Delayed;
 use Amp\Loop;
-use Amp\PHPUnit\TestCase;
+use Amp\PHPUnit\AsyncTestCase;
 use Amp\Sql\Common\StatementPool;
 use Amp\Sql\Pool;
 use Amp\Sql\Statement;
 use Amp\Success;
 
-class StatementPoolTest extends TestCase
+class StatementPoolTest extends AsyncTestCase
 {
     public function testActiveStatementsRemainAfterTimeout()
     {
