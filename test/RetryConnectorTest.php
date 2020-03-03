@@ -68,7 +68,7 @@ class RetryConnectorTest extends AsyncTestCase
             ->getMockForAbstractClass();
 
         $this->expectException(ConnectionException::class);
-        $this->expectDeprecationMessageMatches('/Could not connect to database server at (.+):\d+ after \d+ tries/');
+        $this->expectExceptionMessageMatches('/Could not connect to database server at (.+):\d+ after \d+ tries/');
 
         $connection = yield $retry->connect($config);
     }
