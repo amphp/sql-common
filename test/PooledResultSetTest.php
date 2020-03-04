@@ -2,36 +2,33 @@
 
 namespace Amp\Sql\Common\Test;
 
-use Amp\Loop;
+use Amp\PHPUnit\AsyncTestCase;
 use Amp\Sql\Common\PooledResultSet;
 use Amp\Sql\ResultSet;
 use Amp\Success;
-use PHPUnit\Framework\TestCase;
 
-class PooledResultSetTest extends TestCase
+class PooledResultSetTest extends AsyncTestCase
 {
-    public function testIdleConnectionsRemovedAfterTimeout()
+    public function testIdleConnectionsRemovedAfterTimeout(): \Generator
     {
-        Loop::run(function () {
-            $invoked = false;
+        $invoked = false;
 
-            $release = function () use (&$invoked) {
-                $invoked = true;
-            };
+        $release = function () use (&$invoked) {
+            $invoked = true;
+        };
 
-            $result = $this->createMock(ResultSet::class);
-            $result->method('advance')
-                ->willReturnOnConsecutiveCalls(new Success(true), new Success(false));
+        $result = $this->createMock(ResultSet::class);
+        $result->method('advance')
+            ->willReturnOnConsecutiveCalls(new Success(true), new Success(false));
 
-            $result = new PooledResultSet($result, $release);
+        $result = new PooledResultSet($result, $release);
 
-            $this->assertTrue(yield $result->advance());
+        $this->assertTrue(yield $result->advance());
 
-            $this->assertFalse($invoked);
+        $this->assertFalse($invoked);
 
-            $this->assertFalse(yield $result->advance());
+        $this->assertFalse(yield $result->advance());
 
-            $this->assertTrue($invoked);
-        });
+        $this->assertTrue($invoked);
     }
 }
