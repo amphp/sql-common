@@ -46,9 +46,6 @@ abstract class ConnectionPool implements Pool
     private $deferred;
 
     /** @var int */
-    private $pending = 0;
-
-    /** @var int */
     private $idleTimeout;
 
     /** @var string */
@@ -259,18 +256,17 @@ abstract class ConnectionPool implements Pool
             throw new \Error("The pool has been closed");
         }
 
-        while ($this->promise !== null && $this->connections->count() + $this->pending >= $this->getConnectionLimit()) {
-            yield $this->promise; // Prevent simultaneous connection creation when connection count is at maximum - 1.
+        while ($this->promise !== null) {
+            yield $this->promise; // Prevent simultaneous connection creation or waiting.
         }
 
         do {
             // While loop to ensure an idle connection is available after promises below are resolved.
             while ($this->idle->isEmpty()) {
-                if ($this->connections->count() + $this->pending < $this->getConnectionLimit()) {
+                if ($this->connections->count() < $this->getConnectionLimit()) {
                     // Max connection count has not been reached, so open another connection.
-                    ++$this->pending;
                     try {
-                        $connection = yield $this->connector->connect($this->connectionConfig);
+                        $connection = yield $this->promise = $this->connector->connect($this->connectionConfig);
                         if (!$connection instanceof Link) {
                             throw new \Error(\sprintf(
                                 "%s::connect() must resolve to an instance of %s",
@@ -279,7 +275,7 @@ abstract class ConnectionPool implements Pool
                             ));
                         }
                     } finally {
-                        --$this->pending;
+                        $this->promise = null;
                     }
 
                     $this->connections->attach($connection);
@@ -289,7 +285,7 @@ abstract class ConnectionPool implements Pool
                 // All possible connections busy, so wait until one becomes available.
                 try {
                     $this->deferred = new Deferred;
-                    // May be resolved with defunct connection, but that connection will not be added to $this->idle.
+                    // Connection will be pulled from $this->idle when promise is resolved.
                     yield $this->promise = $this->deferred->promise();
                 } finally {
                     $this->deferred = null;
