@@ -4,14 +4,28 @@ namespace Amp\Sql\Common;
 
 use Amp\Promise;
 use Amp\Sql\ResultSet;
+use function Amp\call;
 
-class PooledResultSet implements ResultSet
+abstract class PooledResultSet implements ResultSet
 {
     /** @var ResultSet */
     private $result;
 
     /** @var callable */
     private $release;
+
+    /** @var Promise<ResultSet|null>|null */
+    private $next;
+
+    /**
+     * Creates a new instance from the given result set and release callable.
+     *
+     * @param ResultSet $result
+     * @param callable  $release
+     *
+     * @return self
+     */
+    abstract protected function createNewInstanceFrom(ResultSet $result, callable $release): self;
 
     /**
      * @param ResultSet $result ResultSet object created by pooled connection or statement.
@@ -30,27 +44,64 @@ class PooledResultSet implements ResultSet
         }
     }
 
-    public function advance(): Promise
+    public function continue(): Promise
     {
-        $promise = $this->result->advance();
+        $promise = $this->result->continue();
 
-        $promise->onResolve(function (\Throwable $exception = null, bool $moreResults = null) {
+        $promise->onResolve(function (?\Throwable $exception, ?array $row): void {
             if ($this->release === null) {
                 return;
             }
 
-            if ($exception || !$moreResults) {
-                $release = $this->release;
-                $this->release = null;
-                $release();
+            if ($exception) {
+                $this->dispose();
+                return;
+            }
+
+            if ($row === null && $this->next === null) {
+                $this->next = $this->fetchNextResultSet();
             }
         });
 
         return $promise;
     }
 
-    public function getCurrent(): array
+    public function dispose(): void
     {
-        return $this->result->getCurrent();
+        $this->result->dispose();
+
+        $release = $this->release;
+        $this->release = null;
+        $release();
+    }
+
+    public function getNextResultSet(): Promise
+    {
+        if ($this->next === null) {
+            $this->next = $this->fetchNextResultSet();
+        }
+
+        return $this->next;
+    }
+
+    private function fetchNextResultSet(): Promise
+    {
+        return call(function () {
+            $result = yield $this->result->getNextResultSet();
+
+            if ($this->release === null) {
+                return null;
+            }
+
+            if ($result === null) {
+                $this->dispose();
+                return null;
+            }
+
+            $result = $this->createNewInstanceFrom($result, $this->release);
+            $this->release = null;
+
+            return $result;
+        });
     }
 }

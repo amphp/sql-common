@@ -7,6 +7,14 @@ use Amp\Sql\Common\PooledResultSet;
 use Amp\Sql\ResultSet;
 use Amp\Success;
 
+class MockPooledResultSet extends PooledResultSet
+{
+    protected function createNewInstanceFrom(ResultSet $result, callable $release): PooledResultSet
+    {
+        return new self($result, $release);
+    }
+}
+
 class PooledResultSetTest extends AsyncTestCase
 {
     public function testIdleConnectionsRemovedAfterTimeout(): \Generator
@@ -17,18 +25,36 @@ class PooledResultSetTest extends AsyncTestCase
             $invoked = true;
         };
 
-        $result = $this->createMock(ResultSet::class);
-        $result->method('advance')
-            ->willReturnOnConsecutiveCalls(new Success(true), new Success(false));
+        $secondResult = $this->createMock(ResultSet::class);
+        $secondResult->method('continue')
+            ->willReturnOnConsecutiveCalls(new Success(['column' => 'value']), new Success(null));
+        $secondResult->method('getNextResultSet')
+            ->willReturn(new Success(null));
 
-        $result = new PooledResultSet($result, $release);
+        $firstResult = $this->createMock(ResultSet::class);
+        $firstResult->method('continue')
+            ->willReturnOnConsecutiveCalls(new Success(['column' => 'value']), new Success(null));
+        $firstResult->method('getNextResultSet')
+            ->willReturn(new Success($secondResult));
 
-        $this->assertTrue(yield $result->advance());
+        $result = new MockPooledResultSet($firstResult, $release);
+
+        $this->assertSame(['column' => 'value'], yield $result->continue());
 
         $this->assertFalse($invoked);
 
-        $this->assertFalse(yield $result->advance());
+        $this->assertNull(yield $result->continue());
 
-        $this->assertTrue($invoked);
+        $this->assertFalse($invoked); // Next result set available.
+
+        $result = yield $result->getNextResultSet();
+
+        $this->assertSame(['column' => 'value'], yield $result->continue());
+
+        $this->assertFalse($invoked);
+
+        $this->assertNull(yield $result->continue());
+
+        $this->assertTrue($invoked); // No next result set, so release callback invoked.
     }
 }

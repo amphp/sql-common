@@ -11,9 +11,9 @@
     "homepage": "http://amphp.org",
     "license": "MIT",
     "require": {
-        "php": ">=7",
-        "amphp/amp": "^2",
-        "amphp/sql": "^1"
+        "php": ">=7.1",
+        "amphp/amp": "dev-streams as 2.6",
+        "amphp/sql": "dev-streams as 2"
     },
     "require-dev": {
         "amphp/php-cs-fixer-config": "dev-master",
