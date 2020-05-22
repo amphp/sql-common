@@ -3,19 +3,19 @@
 namespace Amp\Sql\Common\Test;
 
 use Amp\PHPUnit\AsyncTestCase;
-use Amp\Sql\Common\PooledResultSet;
-use Amp\Sql\ResultSet;
+use Amp\Sql\Common\PooledResult;
+use Amp\Sql\Result;
 use Amp\Success;
 
-class MockPooledResultSet extends PooledResultSet
+class MockPooledResult extends PooledResult
 {
-    protected function createNewInstanceFrom(ResultSet $result, callable $release): PooledResultSet
+    protected function createNewInstanceFrom(Result $result, callable $release): PooledResult
     {
         return new self($result, $release);
     }
 }
 
-class PooledResultSetTest extends AsyncTestCase
+class PooledResultTest extends AsyncTestCase
 {
     public function testIdleConnectionsRemovedAfterTimeout(): \Generator
     {
@@ -25,19 +25,19 @@ class PooledResultSetTest extends AsyncTestCase
             $invoked = true;
         };
 
-        $secondResult = $this->createMock(ResultSet::class);
+        $secondResult = $this->createMock(Result::class);
         $secondResult->method('continue')
             ->willReturnOnConsecutiveCalls(new Success(['column' => 'value']), new Success(null));
-        $secondResult->method('getNextResultSet')
+        $secondResult->method('getNextResult')
             ->willReturn(new Success(null));
 
-        $firstResult = $this->createMock(ResultSet::class);
+        $firstResult = $this->createMock(Result::class);
         $firstResult->method('continue')
             ->willReturnOnConsecutiveCalls(new Success(['column' => 'value']), new Success(null));
-        $firstResult->method('getNextResultSet')
+        $firstResult->method('getNextResult')
             ->willReturn(new Success($secondResult));
 
-        $result = new MockPooledResultSet($firstResult, $release);
+        $result = new MockPooledResult($firstResult, $release);
 
         $this->assertSame(['column' => 'value'], yield $result->continue());
 
@@ -47,7 +47,7 @@ class PooledResultSetTest extends AsyncTestCase
 
         $this->assertFalse($invoked); // Next result set available.
 
-        $result = yield $result->getNextResultSet();
+        $result = yield $result->getNextResult();
 
         $this->assertSame(['column' => 'value'], yield $result->continue());
 

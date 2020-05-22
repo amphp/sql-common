@@ -5,11 +5,11 @@ namespace Amp\Sql\Common\Test;
 use Amp\Delayed;
 use Amp\PHPUnit\AsyncTestCase;
 use Amp\Promise;
-use Amp\Sql\CommandResult;
 use Amp\Sql\Common\ConnectionPool;
 use Amp\Sql\ConnectionConfig;
 use Amp\Sql\Connector;
 use Amp\Sql\Link;
+use Amp\Sql\Result;
 use Amp\Success;
 
 class ConnectionPoolTest extends AsyncTestCase
@@ -40,7 +40,7 @@ class ConnectionPoolTest extends AsyncTestCase
 
                 $link->method('query')
                     ->willReturnCallback(function () {
-                        return new Delayed(100, $this->createMock(CommandResult::class));
+                        return new Delayed(100, $this->createMock(Result::class));
                     });
 
                 return new Success($link);

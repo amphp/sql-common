@@ -3,35 +3,35 @@
 namespace Amp\Sql\Common;
 
 use Amp\Promise;
-use Amp\Sql\ResultSet;
+use Amp\Sql\Result;
 use function Amp\call;
 
-abstract class PooledResultSet implements ResultSet
+abstract class PooledResult implements Result
 {
-    /** @var ResultSet */
+    /** @var Result */
     private $result;
 
     /** @var callable */
     private $release;
 
-    /** @var Promise<ResultSet|null>|null */
+    /** @var Promise<Result|null>|null */
     private $next;
 
     /**
-     * Creates a new instance from the given result set and release callable.
+     * Creates a new instance from the given result and release callable.
      *
-     * @param ResultSet $result
-     * @param callable  $release
+     * @param Result   $result
+     * @param callable $release
      *
      * @return self
      */
-    abstract protected function createNewInstanceFrom(ResultSet $result, callable $release): self;
+    abstract protected function createNewInstanceFrom(Result $result, callable $release): self;
 
     /**
-     * @param ResultSet $result ResultSet object created by pooled connection or statement.
-     * @param callable  $release Callable to be invoked when the result set is destroyed.
+     * @param Result   $result  Result object created by pooled connection or statement.
+     * @param callable $release Callable to be invoked when the result set is destroyed.
      */
-    public function __construct(ResultSet $result, callable $release)
+    public function __construct(Result $result, callable $release)
     {
         $this->result = $result;
         $this->release = $release;
@@ -59,7 +59,7 @@ abstract class PooledResultSet implements ResultSet
             }
 
             if ($row === null && $this->next === null) {
-                $this->next = $this->fetchNextResultSet();
+                $this->next = $this->fetchNextResult();
             }
         });
 
@@ -75,19 +75,24 @@ abstract class PooledResultSet implements ResultSet
         $release();
     }
 
-    public function getNextResultSet(): Promise
+    public function getRowCount(): ?int
+    {
+        return $this->result->getRowCount();
+    }
+
+    public function getNextResult(): Promise
     {
         if ($this->next === null) {
-            $this->next = $this->fetchNextResultSet();
+            $this->next = $this->fetchNextResult();
         }
 
         return $this->next;
     }
 
-    private function fetchNextResultSet(): Promise
+    private function fetchNextResult(): Promise
     {
         return call(function () {
-            $result = yield $this->result->getNextResultSet();
+            $result = yield $this->result->getNextResult();
 
             if ($this->release === null) {
                 return null;
