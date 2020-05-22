@@ -6,7 +6,7 @@ use Amp\Promise;
 use Amp\Sql\Result;
 use function Amp\call;
 
-final class PooledResult implements Result
+class PooledResult implements Result
 {
     /** @var Result */
     private $result;
