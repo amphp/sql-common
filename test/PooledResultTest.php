@@ -7,14 +7,6 @@ use Amp\Sql\Common\PooledResult;
 use Amp\Sql\Result;
 use Amp\Success;
 
-class MockPooledResult extends PooledResult
-{
-    protected function createNewInstanceFrom(Result $result, callable $release): PooledResult
-    {
-        return new self($result, $release);
-    }
-}
-
 class PooledResultTest extends AsyncTestCase
 {
     public function testIdleConnectionsRemovedAfterTimeout(): \Generator
@@ -37,7 +29,7 @@ class PooledResultTest extends AsyncTestCase
         $firstResult->method('getNextResult')
             ->willReturn(new Success($secondResult));
 
-        $result = new MockPooledResult($firstResult, $release);
+        $result = new PooledResult($firstResult, $release);
 
         $this->assertSame(['column' => 'value'], yield $result->continue());
 

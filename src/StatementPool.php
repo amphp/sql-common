@@ -5,7 +5,7 @@ namespace Amp\Sql\Common;
 use Amp\Loop;
 use Amp\Promise;
 use Amp\Sql\Pool;
-use Amp\Sql\ResultSet;
+use Amp\Sql\Result;
 use Amp\Sql\Statement;
 use function Amp\call;
 
@@ -40,17 +40,20 @@ abstract class StatementPool implements Statement
     abstract protected function prepare(Statement $statement): Promise;
 
     /**
-     * @param ResultSet $resultSet
-     * @param callable  $release
+     * @param Result   $result
+     * @param callable $release
      *
-     * @return ResultSet
+     * @return Result
      */
-    abstract protected function createResultSet(ResultSet $resultSet, callable $release): ResultSet;
+    protected function createResult(Result $result, callable $release): Result
+    {
+        return new PooledResult($result, $release);
+    }
 
     /**
-     * @param Pool $pool Pool used to re-create the statement if the original closes.
+     * @param Pool      $pool      Pool used to re-create the statement if the original closes.
      * @param Statement $statement Original prepared statement returned from the Link.
-     * @param callable $prepare Callable that returns a new prepared statement.
+     * @param callable  $prepare   Callable that returns a new prepared statement.
      */
     public function __construct(Pool $pool, Statement $statement, callable $prepare)
     {
@@ -108,15 +111,9 @@ abstract class StatementPool implements Statement
                 throw $exception;
             }
 
-            if ($result instanceof ResultSet) {
-                $result = $this->createResultSet($result, function () use ($statement) {
-                    $this->push($statement);
-                });
-            } else {
+            return $this->createResult($result, function () use ($statement) {
                 $this->push($statement);
-            }
-
-            return $result;
+            });
         });
     }
 

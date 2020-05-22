@@ -3,7 +3,7 @@
 namespace Amp\Sql\Common;
 
 use Amp\Promise;
-use Amp\Sql\ResultSet;
+use Amp\Sql\Result;
 use Amp\Sql\Statement;
 use Amp\Sql\Transaction;
 use Amp\Sql\TransactionError;
@@ -35,16 +35,19 @@ abstract class PooledTransaction implements Transaction
      * Creates a ResultSet of the appropriate type using the ResultSet object returned by the Transaction object and
      * the given release callable.
      *
-     * @param ResultSet $resultSet
-     * @param callable  $release
+     * @param Result   $result
+     * @param callable $release
      *
-     * @return ResultSet
+     * @return Result
      */
-    abstract protected function createResultSet(ResultSet $resultSet, callable $release): ResultSet;
+    protected function createResult(Result $result, callable $release): Result
+    {
+        return new PooledResult($result, $release);
+    }
 
     /**
      * @param Transaction $transaction Transaction object created by pooled connection.
-     * @param callable    $release Callable to be invoked when the transaction completes or is destroyed.
+     * @param callable    $release     Callable to be invoked when the transaction completes or is destroyed.
      */
     public function __construct(Transaction $transaction, callable $release)
     {
@@ -80,12 +83,8 @@ abstract class PooledTransaction implements Transaction
         return call(function () use ($sql) {
             $result = yield $this->transaction->query($sql);
 
-            if ($result instanceof ResultSet) {
-                ++$this->refCount;
-                return $this->createResultSet($result, $this->release);
-            }
-
-            return $result;
+            ++$this->refCount;
+            return $this->createResult($result, $this->release);
         });
     }
 
@@ -111,12 +110,8 @@ abstract class PooledTransaction implements Transaction
         return call(function () use ($sql, $params) {
             $result = yield $this->transaction->execute($sql, $params);
 
-            if ($result instanceof ResultSet) {
-                ++$this->refCount;
-                return $this->createResultSet($result, $this->release);
-            }
-
-            return $result;
+            ++$this->refCount;
+            return $this->createResult($result, $this->release);
         });
     }
 

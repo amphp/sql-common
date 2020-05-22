@@ -6,7 +6,7 @@ use Amp\Promise;
 use Amp\Sql\Result;
 use function Amp\call;
 
-abstract class PooledResult implements Result
+final class PooledResult implements Result
 {
     /** @var Result */
     private $result;
@@ -16,16 +16,6 @@ abstract class PooledResult implements Result
 
     /** @var Promise<Result|null>|null */
     private $next;
-
-    /**
-     * Creates a new instance from the given result and release callable.
-     *
-     * @param Result   $result
-     * @param callable $release
-     *
-     * @return self
-     */
-    abstract protected function createNewInstanceFrom(Result $result, callable $release): self;
 
     /**
      * @param Result   $result  Result object created by pooled connection or statement.
@@ -103,7 +93,7 @@ abstract class PooledResult implements Result
                 return null;
             }
 
-            $result = $this->createNewInstanceFrom($result, $this->release);
+            $result = new self($result, $this->release);
             $this->release = null;
 
             return $result;

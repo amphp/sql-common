@@ -75,6 +75,8 @@ class ConnectionPoolTest extends AsyncTestCase
 
         $this->assertCount($count, yield $promises);
 
+        unset($promises); // Remove references to results so they are destructed.
+
         $this->assertSame($count, $pool->getConnectionCount());
 
         yield new Delayed(1000);
@@ -105,6 +107,9 @@ class ConnectionPoolTest extends AsyncTestCase
         $this->setMinimumRuntime($expectedRuntime);
         $this->setTimeout($expectedRuntime + 100);
 
-        $this->assertCount($count, yield $promises);
+        foreach ($promises as $promise) {
+            $result = yield $promise;
+            $result->dispose();
+        }
     }
 }

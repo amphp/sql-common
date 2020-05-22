@@ -11,7 +11,7 @@ use Amp\Sql\Connector;
 use Amp\Sql\FailureException;
 use Amp\Sql\Link;
 use Amp\Sql\Pool;
-use Amp\Sql\ResultSet;
+use Amp\Sql\Result;
 use Amp\Sql\Statement;
 use Amp\Sql\Transaction;
 use function Amp\call;
@@ -62,17 +62,6 @@ abstract class ConnectionPool implements Pool
     abstract protected function createDefaultConnector(): Connector;
 
     /**
-     * Creates a ResultSet of the appropriate type using the ResultSet object returned by the Link object and the
-     * given release callable.
-     *
-     * @param ResultSet $resultSet
-     * @param callable  $release
-     *
-     * @return ResultSet
-     */
-    abstract protected function createResultSet(ResultSet $resultSet, callable $release): ResultSet;
-
-    /**
      * Creates a Statement of the appropriate type using the Statement object returned by the Link object and the
      * given release callable.
      *
@@ -106,7 +95,7 @@ abstract class ConnectionPool implements Pool
     /**
      * @param ConnectionConfig $config
      * @param int              $maxConnections Maximum number of active connections in the pool.
-     * @param int              $idleTimeout Number of seconds until idle connections are removed from the pool.
+     * @param int              $idleTimeout    Number of seconds until idle connections are removed from the pool.
      * @param Connector|null   $connector
      */
     public function __construct(
@@ -157,6 +146,20 @@ abstract class ConnectionPool implements Pool
     public function __destruct()
     {
         Loop::cancel($this->timeoutWatcher);
+    }
+
+    /**
+     * Creates a ResultSet of the appropriate type using the ResultSet object returned by the Link object and the
+     * given release callable.
+     *
+     * @param Result   $result
+     * @param callable $release
+     *
+     * @return Result
+     */
+    protected function createResult(Result $result, callable $release): Result
+    {
+        return new PooledResult($result, $release);
     }
 
     public function getIdleTimeout(): int
@@ -342,15 +345,9 @@ abstract class ConnectionPool implements Pool
                 throw $exception;
             }
 
-            if ($result instanceof ResultSet) {
-                $result = $this->createResultSet($result, function () use ($connection) {
-                    $this->push($connection);
-                });
-            } else {
+            return $this->createResult($result, function () use ($connection) {
                 $this->push($connection);
-            }
-
-            return $result;
+            });
         });
     }
 
@@ -370,15 +367,9 @@ abstract class ConnectionPool implements Pool
                 throw $exception;
             }
 
-            if ($result instanceof ResultSet) {
-                $result = $this->createResultSet($result, function () use ($connection) {
-                    $this->push($connection);
-                });
-            } else {
+            return $this->createResult($result, function () use ($connection) {
                 $this->push($connection);
-            }
-
-            return $result;
+            });
         });
     }
 
