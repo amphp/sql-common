@@ -65,7 +65,7 @@ abstract class StatementPool implements Statement
 
         $this->statements->push($statement);
 
-        $this->timeoutWatcher = Loop::repeat(1000, static function () use ($pool, $statements) {
+        $this->timeoutWatcher = Loop::repeat(1000, static function () use ($pool, $statements): void {
             $now = \time();
             $idleTimeout = ((int) ($pool->getIdleTimeout() / 10)) ?: 1;
 
@@ -98,7 +98,7 @@ abstract class StatementPool implements Statement
     {
         $this->lastUsedAt = \time();
 
-        return call(function () use ($params) {
+        return call(function () use ($params): \Generator {
             $statement = yield from $this->pop();
             \assert($statement instanceof Statement);
 
@@ -111,7 +111,7 @@ abstract class StatementPool implements Statement
                 throw $exception;
             }
 
-            return $this->createResult($result, function () use ($statement) {
+            return $this->createResult($result, function () use ($statement): void {
                 $this->push($statement);
             });
         });
@@ -123,7 +123,7 @@ abstract class StatementPool implements Statement
      *
      * @param Statement $statement
      */
-    protected function push(Statement $statement)
+    protected function push(Statement $statement): void
     {
         $maxConnections = $this->pool->getConnectionLimit();
 

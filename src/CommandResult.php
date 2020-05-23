@@ -41,6 +41,9 @@ final class CommandResult implements Result
         return $this->nextResult;
     }
 
+    /**
+     * @return int Returns the number of rows affected by the command.
+     */
     public function getRowCount(): int
     {
         return $this->affectedRows;

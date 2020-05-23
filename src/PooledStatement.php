@@ -12,7 +12,7 @@ class PooledStatement implements Statement
     /** @var Statement */
     private $statement;
 
-    /** @var callable|null */
+    /** @var callable */
     private $release;
 
     /** @var int */
@@ -26,23 +26,17 @@ class PooledStatement implements Statement
     {
         $this->statement = $statement;
 
-        if (!$this->statement->isAlive()) {
-            $release();
-        } else {
-            $refCount = &$this->refCount;
-            $this->release = static function () use (&$refCount, $release) {
-                if (--$refCount === 0) {
-                    $release();
-                }
-            };
-        }
+        $refCount = &$this->refCount;
+        $this->release = static function () use (&$refCount, $release): void {
+            if (--$refCount === 0) {
+                $release();
+            }
+        };
     }
 
     public function __destruct()
     {
-        if ($this->release) {
-            ($this->release)();
-        }
+        ($this->release)();
     }
 
     /**
@@ -61,7 +55,7 @@ class PooledStatement implements Statement
 
     public function execute(array $params = []): Promise
     {
-        return call(function () use ($params) {
+        return call(function () use ($params): \Generator {
             $result = yield $this->statement->execute($params);
 
             ++$this->refCount;

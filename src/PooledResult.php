@@ -11,7 +11,7 @@ class PooledResult implements Result
     /** @var Result */
     private $result;
 
-    /** @var callable */
+    /** @var callable|null */
     private $release;
 
     /** @var Promise<Result|null>|null */
@@ -60,9 +60,11 @@ class PooledResult implements Result
     {
         $this->result->dispose();
 
-        $release = $this->release;
-        $this->release = null;
-        $release();
+        if ($this->release !== null) {
+            $release = $this->release;
+            $this->release = null;
+            $release();
+        }
     }
 
     public function getRowCount(): ?int

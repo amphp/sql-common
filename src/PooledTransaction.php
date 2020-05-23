@@ -14,7 +14,7 @@ abstract class PooledTransaction implements Transaction
     /** @var Transaction|null */
     private $transaction;
 
-    /** @var callable|null */
+    /** @var callable */
     private $release;
 
     /** @var int */
@@ -52,18 +52,17 @@ abstract class PooledTransaction implements Transaction
     public function __construct(Transaction $transaction, callable $release)
     {
         $this->transaction = $transaction;
-        $this->release = $release;
+
+        $refCount = &$this->refCount;
+        $this->release = static function () use (&$refCount, $release) {
+            if (--$refCount === 0) {
+                $release();
+            }
+        };
 
         if (!$this->transaction->isActive()) {
-            $release();
             $this->transaction = null;
-        } else {
-            $refCount = &$this->refCount;
-            $this->release = static function () use (&$refCount, $release) {
-                if (--$refCount === 0) {
-                    $release();
-                }
-            };
+            ($this->release)();
         }
     }
 
@@ -80,7 +79,8 @@ abstract class PooledTransaction implements Transaction
             throw new TransactionError("The transaction has been committed or rolled back");
         }
 
-        return call(function () use ($sql) {
+        return call(function () use ($sql): \Generator {
+            /** @psalm-suppress PossiblyNullReference $this->transaction checked for null above. */
             $result = yield $this->transaction->query($sql);
 
             ++$this->refCount;
@@ -94,7 +94,8 @@ abstract class PooledTransaction implements Transaction
             throw new TransactionError("The transaction has been committed or rolled back");
         }
 
-        return call(function () use ($sql) {
+        return call(function () use ($sql): \Generator {
+            /** @psalm-suppress PossiblyNullReference $this->transaction checked for null above. */
             $statement = yield $this->transaction->prepare($sql);
             ++$this->refCount;
             return $this->createStatement($statement, $this->release);
@@ -107,7 +108,8 @@ abstract class PooledTransaction implements Transaction
             throw new TransactionError("The transaction has been committed or rolled back");
         }
 
-        return call(function () use ($sql, $params) {
+        return call(function () use ($sql, $params): \Generator {
+            /** @psalm-suppress PossiblyNullReference $this->transaction checked for null above. */
             $result = yield $this->transaction->execute($sql, $params);
 
             ++$this->refCount;
@@ -129,7 +131,7 @@ abstract class PooledTransaction implements Transaction
         return $this->transaction->getLastUsedAt();
     }
 
-    public function close()
+    public function close(): void
     {
         if (!$this->transaction) {
             return;

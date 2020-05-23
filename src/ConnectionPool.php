@@ -2,7 +2,6 @@
 
 namespace Amp\Sql\Common;
 
-use Amp\CallableMaker;
 use Amp\Deferred;
 use Amp\Loop;
 use Amp\Promise;
@@ -19,8 +18,6 @@ use function Amp\coroutine;
 
 abstract class ConnectionPool implements Pool
 {
-    use CallableMaker;
-
     const DEFAULT_MAX_CONNECTIONS = 100;
     const DEFAULT_IDLE_TIMEOUT = 60;
 
@@ -33,7 +30,7 @@ abstract class ConnectionPool implements Pool
     /** @var int */
     private $maxConnections;
 
-    /** @var \SplQueue */
+    /** @var \SplQueue<Link> */
     private $idle;
 
     /** @var \SplObjectStorage */
@@ -194,7 +191,7 @@ abstract class ConnectionPool implements Pool
     /**
      * Close all connections in the pool. No further queries may be made after a pool is closed.
      */
-    public function close()
+    public function close(): void
     {
         $this->closed = true;
         foreach ($this->connections as $connection) {
@@ -314,7 +311,7 @@ abstract class ConnectionPool implements Pool
      *
      * @throws \Error If the connection is not part of this pool.
      */
-    protected function push(Link $connection)
+    protected function push(Link $connection): void
     {
         \assert(isset($this->connections[$connection]), 'Connection is not part of this pool');
 
@@ -385,7 +382,7 @@ abstract class ConnectionPool implements Pool
             return $this->createStatementPool(
                 $this,
                 $statement,
-                coroutine($this->callableFromInstanceMethod("prepareStatement"))
+                coroutine(\Closure::fromCallable([$this, "prepareStatement"]))
             );
         });
     }
