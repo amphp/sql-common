@@ -34,6 +34,11 @@ class PooledResult implements Result
         }
     }
 
+    protected function newInstanceFrom(Result $result, callable $release): self
+    {
+        return new self($result, $release);
+    }
+
     public function continue(): Promise
     {
         $promise = $this->result->continue();
@@ -95,7 +100,7 @@ class PooledResult implements Result
                 return null;
             }
 
-            $result = new self($result, $this->release);
+            $result = $this->newInstanceFrom($result, $this->release);
             $this->release = null;
 
             return $result;
