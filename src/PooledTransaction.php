@@ -54,7 +54,7 @@ abstract class PooledTransaction implements Transaction
         $this->transaction = $transaction;
 
         $refCount = &$this->refCount;
-        $this->release = static function () use (&$refCount, $release) {
+        $this->release = static function () use (&$refCount, $release): void {
             if (--$refCount === 0) {
                 $release();
             }

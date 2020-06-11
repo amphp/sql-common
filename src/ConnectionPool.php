@@ -36,7 +36,7 @@ abstract class ConnectionPool implements Pool
     /** @var \SplObjectStorage */
     private $connections;
 
-    /** @var Promise|null */
+    /** @var Promise<Link>|null */
     private $promise;
 
     /** @var Deferred|null */
@@ -267,6 +267,7 @@ abstract class ConnectionPool implements Pool
                     // Max connection count has not been reached, so open another connection.
                     try {
                         $connection = yield $this->promise = $this->connector->connect($this->connectionConfig);
+                        /** @psalm-suppress DocblockTypeContradiction */
                         if (!$connection instanceof Link) {
                             throw new \Error(\sprintf(
                                 "%s::connect() must resolve to an instance of %s",

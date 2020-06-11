@@ -29,7 +29,7 @@ final class RetryConnector implements Connector
 
     public function connect(ConnectionConfig $config): Promise
     {
-        return call(function () use ($config) {
+        return call(function () use ($config): \Generator {
             $tries = 0;
             $exceptions = [];
 
