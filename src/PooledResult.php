@@ -72,16 +72,6 @@ class PooledResult implements Result
         }
     }
 
-    public function onDisposal(callable $onDisposal): void
-    {
-        $this->result->onDisposal($onDisposal);
-    }
-
-    public function onCompletion(callable $onCompletion): void
-    {
-        $this->result->onCompletion($onCompletion);
-    }
-
     public function getRowCount(): ?int
     {
         return $this->result->getRowCount();

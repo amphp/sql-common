@@ -2,7 +2,6 @@
 
 namespace Amp\Sql\Common;
 
-use Amp\Loop;
 use Amp\Promise;
 use Amp\Sql\Result;
 use Amp\Success;
@@ -38,17 +37,6 @@ final class CommandResult implements Result
     public function onDisposal(callable $onDisposal): void
     {
         // No-op, result is complete on creation
-    }
-
-    public function onCompletion(callable $onCompletion): void
-    {
-        try {
-            $onCompletion(null);
-        } catch (\Throwable $e) {
-            Loop::defer(static function () use ($e): void {
-                throw $e;
-            });
-        }
     }
 
     public function getNextResult(): Promise
