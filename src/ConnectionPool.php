@@ -316,7 +316,7 @@ abstract class ConnectionPool implements Pool
         \assert(isset($this->connections[$connection]), 'Connection is not part of this pool');
 
         if ($connection->isAlive()) {
-            $this->idle->push($connection);
+            $this->idle->unshift($connection);
         } else {
             $this->connections->detach($connection);
         }
