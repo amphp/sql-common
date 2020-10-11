@@ -4,29 +4,24 @@ namespace Amp\Sql\Common;
 
 use Amp\Promise;
 use Amp\Sql\Result;
-use Amp\Success;
+use function Amp\await;
 
 final class CommandResult implements Result
 {
-    /** @var int */
-    private $affectedRows;
-
-    /** @var Promise<null> */
-    private $promise;
+    private int $affectedRows;
 
     /** @var Promise<Result|null> */
-    private $nextResult;
+    private Promise $nextResult;
 
     public function __construct(int $affectedRows, Promise $nextResult)
     {
         $this->affectedRows = $affectedRows;
-        $this->promise = new Success;
         $this->nextResult = $nextResult;
     }
 
-    public function continue(): Promise
+    public function continue(): ?array
     {
-        return $this->promise;
+        return null;
     }
 
     public function dispose(): void
@@ -39,9 +34,9 @@ final class CommandResult implements Result
         // No-op, result is complete on creation
     }
 
-    public function getNextResult(): Promise
+    public function getNextResult(): ?Result
     {
-        return $this->nextResult;
+        return await($this->nextResult);
     }
 
     /**

@@ -2,15 +2,15 @@
 
 namespace Amp\Sql\Common\Test;
 
-use Amp\Delayed;
 use Amp\PHPUnit\AsyncTestCase;
-use Amp\Promise;
 use Amp\Sql\Common\ConnectionPool;
 use Amp\Sql\ConnectionConfig;
 use Amp\Sql\Connector;
 use Amp\Sql\Link;
 use Amp\Sql\Result;
-use Amp\Success;
+use function Amp\async;
+use function Amp\await;
+use function Amp\delay;
 
 class ConnectionPoolTest extends AsyncTestCase
 {
@@ -30,7 +30,7 @@ class ConnectionPoolTest extends AsyncTestCase
 
         $connector = $this->createMock(Connector::class);
         $connector->method('connect')
-            ->willReturnCallback(function () use ($now): Promise {
+            ->willReturnCallback(function () use ($now): Link {
                 $link = $this->createMock(Link::class);
                 $link->method('getLastUsedAt')
                     ->willReturn($now);
@@ -40,10 +40,11 @@ class ConnectionPoolTest extends AsyncTestCase
 
                 $link->method('query')
                     ->willReturnCallback(function () {
-                        return new Delayed(100, $this->createMock(Result::class));
+                        delay(100);
+                        return $this->createMock(Result::class);
                     });
 
-                return new Success($link);
+                return $link;
             });
 
         return $connector;
@@ -61,7 +62,7 @@ class ConnectionPoolTest extends AsyncTestCase
             ->getMockForAbstractClass();
     }
 
-    public function testIdleConnectionsRemovedAfterTimeout(): \Generator
+    public function testIdleConnectionsRemovedAfterTimeout()
     {
         $connector = $this->createConnector();
         $pool = $this->createPool($connector, 10, 2);
@@ -70,25 +71,25 @@ class ConnectionPoolTest extends AsyncTestCase
 
         $promises = [];
         for ($i = 0; $i < $count; ++$i) {
-            $promises[] = $pool->query("SELECT $i");
+            $promises[] = async(fn() => $pool->query("SELECT $i"));
         }
 
-        $this->assertCount($count, yield $promises);
+        $this->assertCount($count, await($promises));
 
         unset($promises); // Remove references to results so they are destructed.
 
         $this->assertSame($count, $pool->getConnectionCount());
 
-        yield new Delayed(1000);
+        delay(1000);
 
         $this->assertSame($count, $pool->getConnectionCount());
 
-        yield new Delayed(1000);
+        delay(1000);
 
         $this->assertSame(0, $pool->getConnectionCount());
     }
 
-    public function testMaxConnectionCount(): \Generator
+    public function testMaxConnectionCount()
     {
         $connector = $this->createConnector();
         $pool = $this->createPool($connector, $maxConnections = 3);
@@ -97,10 +98,8 @@ class ConnectionPoolTest extends AsyncTestCase
 
         $promises = [];
         for ($i = 0; $i < $count; ++$i) {
-            $promises[] = $pool->query("SELECT $i");
+            $promises[] = async(fn() => $pool->query("SELECT $i"));
         }
-
-        $this->assertSame($maxConnections, $pool->getConnectionCount());
 
         $expectedRuntime = 100 * \ceil($count / $maxConnections);
 
@@ -108,8 +107,10 @@ class ConnectionPoolTest extends AsyncTestCase
         $this->setTimeout($expectedRuntime + 100);
 
         foreach ($promises as $promise) {
-            $result = yield $promise;
+            $result = await($promise);
             $result->dispose();
         }
+
+        $this->assertSame($maxConnections, $pool->getConnectionCount());
     }
 }

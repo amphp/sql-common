@@ -2,23 +2,21 @@
 
 namespace Amp\Sql\Common;
 
-use Amp\Promise;
 use Amp\Sql\Result;
 use Amp\Sql\Statement;
 use Amp\Sql\Transaction;
 use Amp\Sql\TransactionError;
-use function Amp\call;
 
 abstract class PooledTransaction implements Transaction
 {
     /** @var Transaction|null */
-    private $transaction;
+    private ?Transaction $transaction;
 
     /** @var callable */
     private $release;
 
     /** @var int */
-    private $refCount = 1;
+    private int $refCount = 1;
 
     /**
      * Creates a Statement of the appropriate type using the Statement object returned by the Transaction object and
@@ -73,48 +71,42 @@ abstract class PooledTransaction implements Transaction
         }
     }
 
-    public function query(string $sql): Promise
+    public function query(string $sql): Result
     {
         if (!$this->transaction) {
             throw new TransactionError("The transaction has been committed or rolled back");
         }
 
-        return call(function () use ($sql): \Generator {
-            /** @psalm-suppress PossiblyNullReference $this->transaction checked for null above. */
-            $result = yield $this->transaction->query($sql);
+        /** @psalm-suppress PossiblyNullReference $this->transaction checked for null above. */
+        $result = $this->transaction->query($sql);
 
-            ++$this->refCount;
-            return $this->createResult($result, $this->release);
-        });
+        ++$this->refCount;
+        return $this->createResult($result, $this->release);
     }
 
-    public function prepare(string $sql): Promise
+    public function prepare(string $sql): Statement
     {
         if (!$this->transaction) {
             throw new TransactionError("The transaction has been committed or rolled back");
         }
 
-        return call(function () use ($sql): \Generator {
-            /** @psalm-suppress PossiblyNullReference $this->transaction checked for null above. */
-            $statement = yield $this->transaction->prepare($sql);
-            ++$this->refCount;
-            return $this->createStatement($statement, $this->release);
-        });
+        /** @psalm-suppress PossiblyNullReference $this->transaction checked for null above. */
+        $statement = $this->transaction->prepare($sql);
+        ++$this->refCount;
+        return $this->createStatement($statement, $this->release);
     }
 
-    public function execute(string $sql, array $params = []): Promise
+    public function execute(string $sql, array $params = []): Result
     {
         if (!$this->transaction) {
             throw new TransactionError("The transaction has been committed or rolled back");
         }
 
-        return call(function () use ($sql, $params): \Generator {
-            /** @psalm-suppress PossiblyNullReference $this->transaction checked for null above. */
-            $result = yield $this->transaction->execute($sql, $params);
+        /** @psalm-suppress PossiblyNullReference $this->transaction checked for null above. */
+        $result = $this->transaction->execute($sql, $params);
 
-            ++$this->refCount;
-            return $this->createResult($result, $this->release);
-        });
+        ++$this->refCount;
+        return $this->createResult($result, $this->release);
     }
 
     public function isAlive(): bool
@@ -137,10 +129,11 @@ abstract class PooledTransaction implements Transaction
             return;
         }
 
-        $promise = $this->transaction->commit();
-        $promise->onResolve($this->release);
-
+        $transaction = $this->transaction;
         $this->transaction = null;
+
+        $transaction->commit();
+        ($this->release)();
     }
 
     public function getIsolationLevel(): int
@@ -157,58 +150,56 @@ abstract class PooledTransaction implements Transaction
         return $this->transaction && $this->transaction->isActive();
     }
 
-    public function commit(): Promise
+    public function commit(): void
     {
         if (!$this->transaction) {
             throw new TransactionError("The transaction has been committed or rolled back");
         }
 
-        $promise = $this->transaction->commit();
-        $promise->onResolve($this->release);
-
+        $transaction = $this->transaction;
         $this->transaction = null;
 
-        return $promise;
+        $transaction->commit();
+        ($this->release)();
     }
 
-    public function rollback(): Promise
+    public function rollback(): void
     {
         if (!$this->transaction) {
             throw new TransactionError("The transaction has been committed or rolled back");
         }
 
-        $promise = $this->transaction->rollback();
-        $promise->onResolve($this->release);
-
+        $transaction = $this->transaction;
         $this->transaction = null;
 
-        return $promise;
+        $transaction->rollback();
+        ($this->release)();
     }
 
-    public function createSavepoint(string $identifier): Promise
+    public function createSavepoint(string $identifier): void
     {
         if (!$this->transaction) {
             throw new TransactionError("The transaction has been committed or rolled back");
         }
 
-        return $this->transaction->createSavepoint($identifier);
+        $this->transaction->createSavepoint($identifier);
     }
 
-    public function rollbackTo(string $identifier): Promise
+    public function rollbackTo(string $identifier): void
     {
         if (!$this->transaction) {
             throw new TransactionError("The transaction has been committed or rolled back");
         }
 
-        return $this->transaction->rollbackTo($identifier);
+        $this->transaction->rollbackTo($identifier);
     }
 
-    public function releaseSavepoint(string $identifier): Promise
+    public function releaseSavepoint(string $identifier): void
     {
         if (!$this->transaction) {
             throw new TransactionError("The transaction has been committed or rolled back");
         }
 
-        return $this->transaction->releaseSavepoint($identifier);
+        $this->transaction->releaseSavepoint($identifier);
     }
 }

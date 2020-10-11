@@ -2,21 +2,17 @@
 
 namespace Amp\Sql\Common;
 
-use Amp\Promise;
 use Amp\Sql\Result;
 use Amp\Sql\Statement;
-use function Amp\call;
 
 class PooledStatement implements Statement
 {
-    /** @var Statement */
-    private $statement;
+    private Statement $statement;
 
     /** @var callable */
     private $release;
 
-    /** @var int */
-    private $refCount = 1;
+    private int $refCount = 1;
 
     /**
      * @param Statement $statement Statement object created by pooled connection.
@@ -53,14 +49,12 @@ class PooledStatement implements Statement
         return new PooledResult($result, $release);
     }
 
-    public function execute(array $params = []): Promise
+    public function execute(array $params = []): Result
     {
-        return call(function () use ($params): \Generator {
-            $result = yield $this->statement->execute($params);
+        $result = $this->statement->execute($params);
 
-            ++$this->refCount;
-            return $this->createResult($result, $this->release);
-        });
+        ++$this->refCount;
+        return $this->createResult($result, $this->release);
     }
 
     public function isAlive(): bool

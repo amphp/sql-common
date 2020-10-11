@@ -2,23 +2,21 @@
 
 namespace Amp\Sql\Common\Test;
 
-use Amp\Failure;
 use Amp\PHPUnit\AsyncTestCase;
 use Amp\Sql\Common\RetryConnector;
 use Amp\Sql\ConnectionConfig;
 use Amp\Sql\ConnectionException;
 use Amp\Sql\Connector;
 use Amp\Sql\Link;
-use Amp\Success;
 
 class RetryConnectorTest extends AsyncTestCase
 {
-    public function testSuccessfulConnect(): \Generator
+    public function testSuccessfulConnect()
     {
         $connector = $this->createMock(Connector::class);
         $connector->expects($this->once())
             ->method('connect')
-            ->willReturn(new Success($this->createMock(Link::class)));
+            ->willReturn($this->createMock(Link::class));
 
         $retry = new RetryConnector($connector);
 
@@ -26,20 +24,26 @@ class RetryConnectorTest extends AsyncTestCase
             ->setConstructorArgs(['localhost', 5432])
             ->getMockForAbstractClass();
 
-        $connection = yield $retry->connect($config);
+        $connection = $retry->connect($config);
 
         $this->assertInstanceOf(Link::class, $connection);
     }
 
-    public function testFirstTryFailConnect(): \Generator
+    public function testFirstTryFailConnect()
     {
         $connector = $this->createMock(Connector::class);
         $connector->expects($this->exactly(2))
             ->method('connect')
-            ->willReturnOnConsecutiveCalls(
-                new Failure(new ConnectionException),
-                new Success($this->createMock(Link::class))
-            );
+            ->willReturnCallback(function (): Link {
+                static $initial = true;
+
+                if ($initial) {
+                    $initial = false;
+                    throw new ConnectionException;
+                }
+
+                return $this->createMock(Link::class);
+            });
 
         $retry = new RetryConnector($connector);
 
@@ -47,19 +51,19 @@ class RetryConnectorTest extends AsyncTestCase
             ->setConstructorArgs(['localhost', 5432])
             ->getMockForAbstractClass();
 
-        $connection = yield $retry->connect($config);
+        $connection = $retry->connect($config);
 
         $this->assertInstanceOf(Link::class, $connection);
     }
 
-    public function testFailingConnect(): \Generator
+    public function testFailingConnect()
     {
         $tries = 3;
 
         $connector = $this->createMock(Connector::class);
         $connector->expects($this->exactly($tries))
             ->method('connect')
-            ->willReturn(new Failure(new ConnectionException));
+            ->willThrowException(new ConnectionException);
 
         $retry = new RetryConnector($connector, $tries);
 
@@ -70,6 +74,6 @@ class RetryConnectorTest extends AsyncTestCase
         $this->expectException(ConnectionException::class);
         $this->expectExceptionMessage('Could not connect to database server');
 
-        $connection = yield $retry->connect($config);
+        $connection = $retry->connect($config);
     }
 }

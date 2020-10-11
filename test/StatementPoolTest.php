@@ -2,16 +2,15 @@
 
 namespace Amp\Sql\Common\Test;
 
-use Amp\Delayed;
 use Amp\PHPUnit\AsyncTestCase;
 use Amp\Sql\Common\StatementPool;
 use Amp\Sql\Pool;
 use Amp\Sql\Statement;
-use Amp\Success;
+use function Amp\delay;
 
 class StatementPoolTest extends AsyncTestCase
 {
-    public function testActiveStatementsRemainAfterTimeout(): \Generator
+    public function testActiveStatementsRemainAfterTimeout()
     {
         $pool = $this->createMock(Pool::class);
         $pool->method('isAlive')
@@ -35,14 +34,12 @@ class StatementPoolTest extends AsyncTestCase
             ->getMockForAbstractClass();
 
         $statementPool->method('prepare')
-            ->willReturnCallback(function (Statement $statement) {
-                return new Success($statement);
-            });
+            ->willReturn($statement);
 
         $this->assertTrue($statementPool->isAlive());
         $this->assertSame(\time(), $statementPool->getLastUsedAt());
 
-        yield new Delayed(1500); // Give timeout watcher enough time to execute.
+        delay(1500); // Give timeout watcher enough time to execute.
 
         $statementPool->execute();
 
@@ -50,7 +47,7 @@ class StatementPoolTest extends AsyncTestCase
         $this->assertSame(\time(), $statementPool->getLastUsedAt());
     }
 
-    public function testIdleStatementsRemovedAfterTimeout(): \Generator
+    public function testIdleStatementsRemovedAfterTimeout()
     {
         $pool = $this->createMock(Pool::class);
         $pool->method('isAlive')
@@ -70,12 +67,12 @@ class StatementPoolTest extends AsyncTestCase
 
         /** @var StatementPool $statementPool */
         $statementPool = $this->getMockBuilder(StatementPool::class)
-            ->setConstructorArgs([$pool, $statement, $this->createCallback(1)])
+            ->setConstructorArgs([$pool, $statement, $this->createCallback(1, fn() => $this->createMock(Statement::class))])
             ->getMockForAbstractClass();
 
         $statementPool->method('prepare')
-            ->willReturnCallback(function (Statement $statement) {
-                return new Success($statement);
+            ->willReturnCallback(function (Statement $statement): Statement {
+                return $statement;
             });
 
         $this->assertTrue($statementPool->isAlive());
@@ -83,7 +80,7 @@ class StatementPoolTest extends AsyncTestCase
 
         $statementPool->execute();
 
-        yield new Delayed(1500); // Give timeout watcher enough time to execute.
+        delay(1500); // Give timeout watcher enough time to execute.
 
         $statementPool->execute();
 

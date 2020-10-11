@@ -5,11 +5,11 @@ namespace Amp\Sql\Common\Test;
 use Amp\PHPUnit\AsyncTestCase;
 use Amp\Sql\Common\PooledResult;
 use Amp\Sql\Result;
-use Amp\Success;
+use function Amp\delay;
 
 class PooledResultTest extends AsyncTestCase
 {
-    public function testIdleConnectionsRemovedAfterTimeout(): \Generator
+    public function testIdleConnectionsRemovedAfterTimeout()
     {
         $invoked = false;
 
@@ -19,33 +19,35 @@ class PooledResultTest extends AsyncTestCase
 
         $secondResult = $this->createMock(Result::class);
         $secondResult->method('continue')
-            ->willReturnOnConsecutiveCalls(new Success(['column' => 'value']), new Success(null));
+            ->willReturnOnConsecutiveCalls(['column' => 'value'], null);
         $secondResult->method('getNextResult')
-            ->willReturn(new Success(null));
+            ->willReturn(null);
 
         $firstResult = $this->createMock(Result::class);
         $firstResult->method('continue')
-            ->willReturnOnConsecutiveCalls(new Success(['column' => 'value']), new Success(null));
+            ->willReturnOnConsecutiveCalls(['column' => 'value'], null);
         $firstResult->method('getNextResult')
-            ->willReturn(new Success($secondResult));
+            ->willReturn($secondResult);
 
         $result = new PooledResult($firstResult, $release);
 
-        $this->assertSame(['column' => 'value'], yield $result->continue());
+        $this->assertSame(['column' => 'value'], $result->continue());
 
         $this->assertFalse($invoked);
 
-        $this->assertNull(yield $result->continue());
+        $this->assertNull($result->continue());
 
         $this->assertFalse($invoked); // Next result set available.
 
-        $result = yield $result->getNextResult();
+        $result = $result->getNextResult();
 
-        $this->assertSame(['column' => 'value'], yield $result->continue());
+        $this->assertSame(['column' => 'value'], $result->continue());
 
         $this->assertFalse($invoked);
 
-        $this->assertNull(yield $result->continue());
+        $this->assertNull($result->continue());
+
+        delay(0); // Tick event loop to resolve promise fetching next row.
 
         $this->assertTrue($invoked); // No next result set, so release callback invoked.
     }

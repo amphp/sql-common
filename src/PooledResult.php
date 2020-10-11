@@ -4,18 +4,18 @@ namespace Amp\Sql\Common;
 
 use Amp\Promise;
 use Amp\Sql\Result;
-use function Amp\call;
+use function Amp\async;
+use function Amp\await;
 
 class PooledResult implements Result
 {
-    /** @var Result */
-    private $result;
+    private Result $result;
 
     /** @var callable|null */
     private $release;
 
     /** @var Promise<Result|null>|null */
-    private $next;
+    private ?Promise $next = null;
 
     /**
      * @param Result   $result  Result object created by pooled connection or statement.
@@ -39,26 +39,20 @@ class PooledResult implements Result
         return new self($result, $release);
     }
 
-    public function continue(): Promise
+    public function continue(): ?array
     {
-        $promise = $this->result->continue();
+        try {
+            $row = $this->result->continue();
+        } catch (\Throwable $exception) {
+            $this->dispose();
+            throw $exception;
+        }
 
-        $promise->onResolve(function (?\Throwable $exception, ?array $row): void {
-            if ($this->release === null) {
-                return;
-            }
+        if ($row === null && $this->next === null) {
+            $this->next = $this->fetchNextResult();
+        }
 
-            if ($exception) {
-                $this->dispose();
-                return;
-            }
-
-            if ($row === null && $this->next === null) {
-                $this->next = $this->fetchNextResult();
-            }
-        });
-
-        return $promise;
+        return $row;
     }
 
     public function dispose(): void
@@ -77,23 +71,19 @@ class PooledResult implements Result
         return $this->result->getRowCount();
     }
 
-    public function getNextResult(): Promise
+    public function getNextResult(): ?Result
     {
         if ($this->next === null) {
             $this->next = $this->fetchNextResult();
         }
 
-        return $this->next;
+        return await($this->next);
     }
 
     private function fetchNextResult(): Promise
     {
-        return call(function () {
-            $result = yield $this->result->getNextResult();
-
-            if ($this->release === null) {
-                return null;
-            }
+        return async(function (): ?Result {
+            $result = $this->result->getNextResult();
 
             if ($result === null) {
                 $this->dispose();

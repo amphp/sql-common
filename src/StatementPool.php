@@ -3,28 +3,21 @@
 namespace Amp\Sql\Common;
 
 use Amp\Loop;
-use Amp\Promise;
 use Amp\Sql\Pool;
 use Amp\Sql\Result;
 use Amp\Sql\Statement;
-use function Amp\call;
 
 abstract class StatementPool implements Statement
 {
-    /** @var \Amp\Sql\Pool */
-    private $pool;
+    private Pool $pool;
 
-    /** @var \SplQueue */
-    private $statements;
+    private \SplQueue $statements;
 
-    /** @var string */
-    private $sql;
+    private string $sql;
 
-    /** @var int */
-    private $lastUsedAt;
+    private int $lastUsedAt;
 
-    /** @var string */
-    private $timeoutWatcher;
+    private string $timeoutWatcher;
 
     /** @var callable */
     private $prepare;
@@ -35,9 +28,9 @@ abstract class StatementPool implements Statement
      *
      * @param Statement $statement
      *
-     * @return Promise<Statement>
+     * @return Statement
      */
-    abstract protected function prepare(Statement $statement): Promise;
+    abstract protected function prepare(Statement $statement): Statement;
 
     /**
      * @param Result   $result
@@ -94,26 +87,22 @@ abstract class StatementPool implements Statement
      *
      * Unlike regular statements, as long as the pool is open this statement will not die.
      */
-    public function execute(array $params = []): Promise
+    public function execute(array $params = []): Result
     {
         $this->lastUsedAt = \time();
 
-        return call(function () use ($params): \Generator {
-            $statement = yield from $this->pop();
-            \assert($statement instanceof Statement);
+        $statement = $this->pop();
 
-            try {
-                $statement = yield $this->prepare($statement);
-                \assert($statement instanceof Statement);
-                $result = yield $statement->execute($params);
-            } catch (\Throwable $exception) {
-                $this->push($statement);
-                throw $exception;
-            }
+        try {
+            $statement = $this->prepare($statement);
+            $result = $statement->execute($params);
+        } catch (\Throwable $exception) {
+            $this->push($statement);
+            throw $exception;
+        }
 
-            return $this->createResult($result, function () use ($statement): void {
-                $this->push($statement);
-            });
+        return $this->createResult($result, function () use ($statement): void {
+            $this->push($statement);
         });
     }
 
@@ -138,25 +127,17 @@ abstract class StatementPool implements Statement
         $this->statements->unshift($statement);
     }
 
-    /**
-     * Coroutine returning a Statement object from the pool or creating a new Statement.
-     *
-     * @return \Generator
-     */
-    protected function pop(): \Generator
+    protected function pop(): Statement
     {
         while (!$this->statements->isEmpty()) {
-            $statement = $this->statements->shift();
-            \assert($statement instanceof Statement);
+            $statement = $this->statements->pop();
 
             if ($statement->isAlive()) {
                 return $statement;
             }
         }
 
-        $statement = yield ($this->prepare)($this->sql);
-        \assert($statement instanceof Statement);
-        return $statement;
+        return ($this->prepare)($this->sql);
     }
 
     /** {@inheritdoc} */

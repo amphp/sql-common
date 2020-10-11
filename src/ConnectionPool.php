@@ -13,43 +13,34 @@ use Amp\Sql\Pool;
 use Amp\Sql\Result;
 use Amp\Sql\Statement;
 use Amp\Sql\Transaction;
-use function Amp\call;
-use function Amp\coroutine;
+use function Amp\async;
+use function Amp\await;
 
 abstract class ConnectionPool implements Pool
 {
     const DEFAULT_MAX_CONNECTIONS = 100;
     const DEFAULT_IDLE_TIMEOUT = 60;
 
-    /** @var Connector */
-    private $connector;
+    private Connector $connector;
 
-    /** @var ConnectionConfig */
-    private $connectionConfig;
+    private ConnectionConfig $connectionConfig;
 
-    /** @var int */
-    private $maxConnections;
+    private int $maxConnections;
 
-    /** @var \SplQueue<Link> */
-    private $idle;
+    private \SplQueue $idle;
 
-    /** @var \SplObjectStorage */
-    private $connections;
+    private \SplObjectStorage $connections;
 
     /** @var Promise<Link>|null */
-    private $promise;
+    private ?Promise $promise = null;
 
-    /** @var Deferred|null */
-    private $deferred;
+    private ?Deferred $deferred = null;
 
-    /** @var int */
-    private $idleTimeout;
+    private int $idleTimeout;
 
-    /** @var string */
-    private $timeoutWatcher;
+    private string $timeoutWatcher;
 
-    /** @var bool */
-    private $closed = false;
+    private bool $closed = false;
 
     /**
      * Create a default connector object based on the library of the extending class.
@@ -209,13 +200,11 @@ abstract class ConnectionPool implements Pool
     /**
      * {@inheritdoc}
      */
-    public function extractConnection(): Promise
+    public function extractConnection(): Link
     {
-        return call(function () {
-            $connection = yield from $this->pop();
-            $this->connections->detach($connection);
-            return $connection;
-        });
+        $connection = $this->pop();
+        $this->connections->detach($connection);
+        return $connection;
     }
 
     /**
@@ -243,21 +232,17 @@ abstract class ConnectionPool implements Pool
     }
 
     /**
-     * @return \Generator
-     *
-     * @resolve Link
-     *
      * @throws FailureException If creating a new connection fails.
      * @throws \Error If the pool has been closed.
      */
-    protected function pop(): \Generator
+    protected function pop(): Link
     {
         if ($this->closed) {
             throw new \Error("The pool has been closed");
         }
 
         while ($this->promise !== null) {
-            yield $this->promise; // Prevent simultaneous connection creation or waiting.
+            await($this->promise); // Prevent simultaneous connection creation or waiting.
         }
 
         do {
@@ -266,7 +251,9 @@ abstract class ConnectionPool implements Pool
                 if ($this->connections->count() < $this->getConnectionLimit()) {
                     // Max connection count has not been reached, so open another connection.
                     try {
-                        $connection = yield $this->promise = $this->connector->connect($this->connectionConfig);
+                        $connection = await(
+                            $this->promise = async(fn() => $this->connector->connect($this->connectionConfig))
+                        );
                         /** @psalm-suppress DocblockTypeContradiction */
                         if (!$connection instanceof Link) {
                             throw new \Error(\sprintf(
@@ -287,14 +274,14 @@ abstract class ConnectionPool implements Pool
                 try {
                     $this->deferred = new Deferred;
                     // Connection will be pulled from $this->idle when promise is resolved.
-                    yield $this->promise = $this->deferred->promise();
+                    await($this->promise = $this->deferred->promise());
                 } finally {
                     $this->deferred = null;
                     $this->promise = null;
                 }
             }
 
-            $connection = $this->idle->shift();
+            $connection = $this->idle->pop();
             \assert($connection instanceof Link);
 
             if ($connection->isAlive()) {
@@ -330,44 +317,38 @@ abstract class ConnectionPool implements Pool
     /**
      * {@inheritdoc}
      */
-    public function query(string $sql): Promise
+    public function query(string $sql): Result
     {
-        return call(function () use ($sql) {
-            $connection = yield from $this->pop();
-            \assert($connection instanceof Link);
+        $connection = $this->pop();
 
-            try {
-                $result = yield $connection->query($sql);
-            } catch (\Throwable $exception) {
-                $this->push($connection);
-                throw $exception;
-            }
+        try {
+            $result = $connection->query($sql);
+        } catch (\Throwable $exception) {
+            $this->push($connection);
+            throw $exception;
+        }
 
-            return $this->createResult($result, function () use ($connection) {
-                $this->push($connection);
-            });
+        return $this->createResult($result, function () use ($connection): void {
+            $this->push($connection);
         });
     }
 
     /**
      * {@inheritdoc}
      */
-    public function execute(string $sql, array $params = []): Promise
+    public function execute(string $sql, array $params = []): Result
     {
-        return call(function () use ($sql, $params) {
-            $connection = yield from $this->pop();
-            \assert($connection instanceof Link);
+        $connection = $this->pop();
 
-            try {
-                $result = yield $connection->execute($sql, $params);
-            } catch (\Throwable $exception) {
-                $this->push($connection);
-                throw $exception;
-            }
+        try {
+            $result = $connection->execute($sql, $params);
+        } catch (\Throwable $exception) {
+            $this->push($connection);
+            throw $exception;
+        }
 
-            return $this->createResult($result, function () use ($connection) {
-                $this->push($connection);
-            });
+        return $this->createResult($result, function () use ($connection): void {
+            $this->push($connection);
         });
     }
 
@@ -376,16 +357,14 @@ abstract class ConnectionPool implements Pool
      *
      * Prepared statements returned by this method will stay alive as long as the pool remains open.
      */
-    public function prepare(string $sql): Promise
+    public function prepare(string $sql): Statement
     {
-        return call(function () use ($sql) {
-            $statement = yield from $this->prepareStatement($sql);
-            return $this->createStatementPool(
-                $this,
-                $statement,
-                coroutine(\Closure::fromCallable([$this, "prepareStatement"]))
-            );
-        });
+        $statement = $this->prepareStatement($sql);
+        return $this->createStatementPool(
+            $this,
+            $statement,
+            \Closure::fromCallable([$this, "prepareStatement"])
+        );
     }
 
     /**
@@ -397,20 +376,19 @@ abstract class ConnectionPool implements Pool
      *
      * @throws FailureException
      */
-    private function prepareStatement(string $sql): \Generator
+    private function prepareStatement(string $sql): Statement
     {
-        $connection = yield from $this->pop();
-        \assert($connection instanceof Link);
+        $connection = $this->pop();
 
         try {
-            $statement = yield $connection->prepare($sql);
+            $statement = $connection->prepare($sql);
             \assert($statement instanceof Statement);
         } catch (\Throwable $exception) {
             $this->push($connection);
             throw $exception;
         }
 
-        return $this->createStatement($statement, function () use ($connection) {
+        return $this->createStatement($statement, function () use ($connection): void {
             $this->push($connection);
         });
     }
@@ -418,23 +396,20 @@ abstract class ConnectionPool implements Pool
     /**
      * {@inheritdoc}
      */
-    public function beginTransaction(int $isolation = Transaction::ISOLATION_COMMITTED): Promise
+    public function beginTransaction(int $isolation = Transaction::ISOLATION_COMMITTED): Transaction
     {
-        return call(function () use ($isolation) {
-            $connection = yield from $this->pop();
-            \assert($connection instanceof Link);
+        $connection = $this->pop();
 
-            try {
-                $transaction = yield $connection->beginTransaction($isolation);
-                \assert($transaction instanceof Transaction);
-            } catch (\Throwable $exception) {
-                $this->push($connection);
-                throw $exception;
-            }
+        try {
+            $transaction = $connection->beginTransaction($isolation);
+            \assert($transaction instanceof Transaction);
+        } catch (\Throwable $exception) {
+            $this->push($connection);
+            throw $exception;
+        }
 
-            return $this->createTransaction($transaction, function () use ($connection) {
-                $this->push($connection);
-            });
+        return $this->createTransaction($transaction, function () use ($connection): void {
+            $this->push($connection);
         });
     }
 }
