@@ -30,7 +30,7 @@ class StatementPoolTest extends AsyncTestCase
 
         /** @var StatementPool $statementPool */
         $statementPool = $this->getMockBuilder(StatementPool::class)
-            ->setConstructorArgs([$pool, $statement, $this->createCallback(0)])
+            ->setConstructorArgs([$pool, 'SELECT 1', $this->createCallback(1, fn() => $statement)])
             ->getMockForAbstractClass();
 
         $statementPool->method('prepare')
@@ -55,19 +55,23 @@ class StatementPoolTest extends AsyncTestCase
         $pool->method('getIdleTimeout')
             ->willReturn(1);
 
-        $statement = $this->createMock(Statement::class);
-        $statement->method('isAlive')
-            ->willReturn(true);
-        $statement->method('getQuery')
-            ->willReturn('SELECT 1');
-        $statement->method('getLastUsedAt')
-            ->willReturn(\time());
-        $statement->expects($this->once())
-            ->method('execute');
+        $createStatement = function (): Statement {
+            $statement = $this->createMock(Statement::class);
+            $statement->method('isAlive')
+                ->willReturn(true);
+            $statement->method('getQuery')
+                ->willReturn('SELECT 1');
+            $statement->method('getLastUsedAt')
+                ->willReturn(\time());
+            $statement->expects($this->once())
+                ->method('execute');
+
+            return $statement;
+        };
 
         /** @var StatementPool $statementPool */
         $statementPool = $this->getMockBuilder(StatementPool::class)
-            ->setConstructorArgs([$pool, $statement, $this->createCallback(1, fn() => $this->createMock(Statement::class))])
+            ->setConstructorArgs([$pool, 'SELECT 1', $this->createCallback(2, $createStatement)])
             ->getMockForAbstractClass();
 
         $statementPool->method('prepare')

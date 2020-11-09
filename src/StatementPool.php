@@ -44,19 +44,17 @@ abstract class StatementPool implements Statement
     }
 
     /**
-     * @param Pool      $pool      Pool used to re-create the statement if the original closes.
-     * @param Statement $statement Original prepared statement returned from the Link.
-     * @param callable  $prepare   Callable that returns a new prepared statement.
+     * @param Pool     $pool      Pool used to prepare statements for execution.
+     * @param string   $sql       SQL statement to prepare
+     * @param callable $prepare   Callable that returns a new prepared statement.
      */
-    public function __construct(Pool $pool, Statement $statement, callable $prepare)
+    public function __construct(Pool $pool, string $sql, callable $prepare)
     {
         $this->lastUsedAt = \time();
         $this->statements = $statements = new \SplQueue;
         $this->pool = $pool;
         $this->prepare = $prepare;
-        $this->sql = $statement->getQuery();
-
-        $this->statements->push($statement);
+        $this->sql = $sql;
 
         $this->timeoutWatcher = Loop::repeat(1000, static function () use ($pool, $statements): void {
             $now = \time();
