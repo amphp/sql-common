@@ -138,7 +138,7 @@ abstract class StatementPool implements Statement
             return;
         }
 
-        $this->statements->push($statement);
+        $this->statements->unshift($statement);
     }
 
     /**
