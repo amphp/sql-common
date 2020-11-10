@@ -7,7 +7,7 @@ use Amp\Sql\Result;
 use function Amp\async;
 use function Amp\await;
 
-class PooledResult implements Result
+class PooledResult implements Result, \IteratorAggregate
 {
     private Result $result;
 
@@ -63,6 +63,13 @@ class PooledResult implements Result
             $release = $this->release;
             $this->release = null;
             $release();
+        }
+    }
+
+    public function getIterator(): \Iterator
+    {
+        foreach ($this->result as $value) {
+            yield $value;
         }
     }
 
