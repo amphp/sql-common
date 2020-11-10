@@ -6,7 +6,7 @@ use Amp\Promise;
 use Amp\Sql\Result;
 use function Amp\await;
 
-final class CommandResult implements Result
+final class CommandResult implements Result, \IteratorAggregate
 {
     private int $affectedRows;
 
@@ -27,6 +27,11 @@ final class CommandResult implements Result
     public function dispose(): void
     {
         // No-op
+    }
+
+    public function getIterator(): \Iterator
+    {
+        return new \EmptyIterator;
     }
 
     public function onDisposal(callable $onDisposal): void
