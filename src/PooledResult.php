@@ -68,9 +68,7 @@ class PooledResult implements Result, \IteratorAggregate
 
     public function getIterator(): \Iterator
     {
-        foreach ($this->result as $value) {
-            yield $value;
-        }
+        yield from $this->result;
     }
 
     public function getRowCount(): ?int
