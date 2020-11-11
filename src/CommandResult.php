@@ -29,7 +29,7 @@ final class CommandResult implements Result, \IteratorAggregate
         // No-op
     }
 
-    public function getIterator(): \Iterator
+    public function getIterator(): \Traversable
     {
         return new \EmptyIterator;
     }

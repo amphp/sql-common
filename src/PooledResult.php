@@ -66,7 +66,7 @@ class PooledResult implements Result, \IteratorAggregate
         }
     }
 
-    public function getIterator(): \Iterator
+    public function getIterator(): \Traversable
     {
         yield from $this->result;
     }
