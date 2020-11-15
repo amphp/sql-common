@@ -66,9 +66,7 @@ abstract class PooledTransaction implements Transaction
 
     public function __destruct()
     {
-        if ($this->transaction && $this->transaction->isActive()) {
-            $this->close(); // Invokes $this->release callback.
-        }
+        ($this->release)();
     }
 
     public function query(string $sql): Result
