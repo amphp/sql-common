@@ -4,6 +4,7 @@ namespace Amp\Sql\Common;
 
 use Amp\Sql\Result;
 use Amp\Sql\Statement;
+use Revolt\EventLoop;
 
 class PooledStatement implements Statement
 {
@@ -32,7 +33,7 @@ class PooledStatement implements Statement
 
     public function __destruct()
     {
-        ($this->release)();
+        EventLoop::queue($this->release);
     }
 
     /**

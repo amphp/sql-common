@@ -6,6 +6,7 @@ use Amp\Sql\Result;
 use Amp\Sql\Statement;
 use Amp\Sql\Transaction;
 use Amp\Sql\TransactionError;
+use Revolt\EventLoop;
 
 abstract class PooledTransaction implements Transaction
 {
@@ -60,13 +61,13 @@ abstract class PooledTransaction implements Transaction
 
         if (!$this->transaction->isActive()) {
             $this->transaction = null;
-            ($this->release)();
+            EventLoop::queue($this->release);
         }
     }
 
     public function __destruct()
     {
-        ($this->release)();
+        EventLoop::queue($this->release);
     }
 
     public function query(string $sql): Result

@@ -2,7 +2,7 @@
 
 namespace Amp\Sql\Common;
 
-use Amp\MultiReasonException;
+use Amp\CompositeException;
 use Amp\Sql\ConnectionConfig;
 use Amp\Sql\ConnectionException;
 use Amp\Sql\Connector;
@@ -42,7 +42,7 @@ final class RetryConnector implements Connector
         throw new ConnectionException(
             "Could not connect to database server at {$name} after {$tries} tries",
             0,
-            new MultiReasonException($exceptions)
+            new CompositeException($exceptions)
         );
     }
 }

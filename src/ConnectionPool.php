@@ -3,8 +3,7 @@
 namespace Amp\Sql\Common;
 
 use Amp\Deferred;
-use Amp\Loop;
-use Amp\Promise;
+use Amp\Future;
 use Amp\Sql\ConnectionConfig;
 use Amp\Sql\Connector;
 use Amp\Sql\FailureException;
@@ -13,8 +12,8 @@ use Amp\Sql\Pool;
 use Amp\Sql\Result;
 use Amp\Sql\Statement;
 use Amp\Sql\Transaction;
-use function Amp\async;
-use function Amp\await;
+use Revolt\EventLoop;
+use function Amp\coroutine;
 
 abstract class ConnectionPool implements Pool
 {
@@ -31,8 +30,8 @@ abstract class ConnectionPool implements Pool
 
     private \SplObjectStorage $connections;
 
-    /** @var Promise<Link>|null */
-    private ?Promise $promise = null;
+    /** @var Future<Link>|null */
+    private ?Future $future = null;
 
     private ?Deferred $deferred = null;
 
@@ -111,7 +110,7 @@ abstract class ConnectionPool implements Pool
 
         $idleTimeout = &$this->idleTimeout;
 
-        $this->timeoutWatcher = Loop::repeat(1000, static function () use (&$idleTimeout, $connections, $idle) {
+        $this->timeoutWatcher = EventLoop::repeat(1, static function () use (&$idleTimeout, $connections, $idle) {
             $now = \time();
             while (!$idle->isEmpty()) {
                 $connection = $idle->bottom();
@@ -128,12 +127,12 @@ abstract class ConnectionPool implements Pool
             }
         });
 
-        Loop::unreference($this->timeoutWatcher);
+        EventLoop::unreference($this->timeoutWatcher);
     }
 
     public function __destruct()
     {
-        Loop::cancel($this->timeoutWatcher);
+        EventLoop::cancel($this->timeoutWatcher);
     }
 
     /**
@@ -193,7 +192,7 @@ abstract class ConnectionPool implements Pool
         if ($this->deferred instanceof Deferred) {
             $deferred = $this->deferred;
             $this->deferred = null;
-            $deferred->fail(new FailureException("Connection pool closed"));
+            $deferred->error(new FailureException("Connection pool closed"));
         }
     }
 
@@ -241,19 +240,19 @@ abstract class ConnectionPool implements Pool
             throw new \Error("The pool has been closed");
         }
 
-        while ($this->promise !== null) {
-            await($this->promise); // Prevent simultaneous connection creation or waiting.
+        while ($this->future !== null) {
+            $this->future->await(); // Prevent simultaneous connection creation or waiting.
         }
 
         do {
-            // While loop to ensure an idle connection is available after promises below are resolved.
+            // While loop to ensure an idle connection is available after futures below are resolved.
             while ($this->idle->isEmpty()) {
                 if ($this->connections->count() < $this->getConnectionLimit()) {
                     // Max connection count has not been reached, so open another connection.
                     try {
-                        $connection = await(
-                            $this->promise = async(fn() => $this->connector->connect($this->connectionConfig))
-                        );
+                        $connection = (
+                            $this->future = coroutine(fn() => $this->connector->connect($this->connectionConfig))
+                        )->await();
                         /** @psalm-suppress DocblockTypeContradiction */
                         if (!$connection instanceof Link) {
                             throw new \Error(\sprintf(
@@ -263,7 +262,7 @@ abstract class ConnectionPool implements Pool
                             ));
                         }
                     } finally {
-                        $this->promise = null;
+                        $this->future = null;
                     }
 
                     $this->connections->attach($connection);
@@ -273,11 +272,11 @@ abstract class ConnectionPool implements Pool
                 // All possible connections busy, so wait until one becomes available.
                 try {
                     $this->deferred = new Deferred;
-                    // Connection will be pulled from $this->idle when promise is resolved.
-                    await($this->promise = $this->deferred->promise());
+                    // Connection will be pulled from $this->idle when future is resolved.
+                    ($this->future = $this->deferred->getFuture())->await();
                 } finally {
                     $this->deferred = null;
-                    $this->promise = null;
+                    $this->future = null;
                 }
             }
 
@@ -309,9 +308,7 @@ abstract class ConnectionPool implements Pool
             $this->connections->detach($connection);
         }
 
-        if ($this->deferred instanceof Deferred) {
-            $this->deferred->resolve($connection);
-        }
+        $this->deferred?->complete($connection);
     }
 
     /**

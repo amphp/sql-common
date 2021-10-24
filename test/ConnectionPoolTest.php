@@ -2,14 +2,14 @@
 
 namespace Amp\Sql\Common\Test;
 
+use Amp\Future;
 use Amp\PHPUnit\AsyncTestCase;
 use Amp\Sql\Common\ConnectionPool;
 use Amp\Sql\ConnectionConfig;
 use Amp\Sql\Connector;
 use Amp\Sql\Link;
 use Amp\Sql\Result;
-use function Amp\async;
-use function Amp\await;
+use function Amp\coroutine;
 use function Amp\delay;
 
 class ConnectionPoolTest extends AsyncTestCase
@@ -40,7 +40,7 @@ class ConnectionPoolTest extends AsyncTestCase
 
                 $link->method('query')
                     ->willReturnCallback(function () {
-                        delay(100);
+                        delay(0.1);
                         return $this->createMock(Result::class);
                     });
 
@@ -69,22 +69,22 @@ class ConnectionPoolTest extends AsyncTestCase
 
         $count = 3;
 
-        $promises = [];
+        $futures = [];
         for ($i = 0; $i < $count; ++$i) {
-            $promises[] = async(fn() => $pool->query("SELECT $i"));
+            $futures[] = coroutine(fn() => $pool->query("SELECT $i"));
         }
 
-        $this->assertCount($count, await($promises));
+        $this->assertCount($count, Future\all($futures));
 
-        unset($promises); // Remove references to results so they are destructed.
-
-        $this->assertSame($count, $pool->getConnectionCount());
-
-        delay(1000);
+        unset($futures); // Remove references to results so they are destructed.
 
         $this->assertSame($count, $pool->getConnectionCount());
 
-        delay(1000);
+        delay(1);
+
+        $this->assertSame($count, $pool->getConnectionCount());
+
+        delay(1);
 
         $this->assertSame(0, $pool->getConnectionCount());
     }
@@ -96,18 +96,18 @@ class ConnectionPoolTest extends AsyncTestCase
 
         $count = 10;
 
-        $promises = [];
+        $futures = [];
         for ($i = 0; $i < $count; ++$i) {
-            $promises[] = async(fn() => $pool->query("SELECT $i"));
+            $futures[] = coroutine(fn() => $pool->query("SELECT $i"));
         }
 
-        $expectedRuntime = 100 * \ceil($count / $maxConnections);
+        $expectedRuntime = 0.1 * \ceil($count / $maxConnections);
 
         $this->setMinimumRuntime($expectedRuntime);
-        $this->setTimeout($expectedRuntime + 100);
+        $this->setTimeout($expectedRuntime + 0.1);
 
-        foreach ($promises as $promise) {
-            $result = await($promise);
+        foreach ($futures as $future) {
+            $result = $future->await();
             $result->dispose();
         }
 

@@ -2,10 +2,10 @@
 
 namespace Amp\Sql\Common;
 
-use Amp\Loop;
 use Amp\Sql\Pool;
 use Amp\Sql\Result;
 use Amp\Sql\Statement;
+use Revolt\EventLoop;
 
 abstract class StatementPool implements Statement
 {
@@ -56,7 +56,7 @@ abstract class StatementPool implements Statement
         $this->prepare = $prepare;
         $this->sql = $sql;
 
-        $this->timeoutWatcher = Loop::repeat(1000, static function () use ($pool, $statements): void {
+        $this->timeoutWatcher = EventLoop::repeat(1, static function () use ($pool, $statements): void {
             $now = \time();
             $idleTimeout = ((int) ($pool->getIdleTimeout() / 10)) ?: 1;
 
@@ -72,12 +72,12 @@ abstract class StatementPool implements Statement
             }
         });
 
-        Loop::unreference($this->timeoutWatcher);
+        EventLoop::unreference($this->timeoutWatcher);
     }
 
     public function __destruct()
     {
-        Loop::cancel($this->timeoutWatcher);
+        EventLoop::cancel($this->timeoutWatcher);
     }
 
     /**

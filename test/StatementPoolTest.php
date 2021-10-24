@@ -39,7 +39,7 @@ class StatementPoolTest extends AsyncTestCase
         $this->assertTrue($statementPool->isAlive());
         $this->assertSame(\time(), $statementPool->getLastUsedAt());
 
-        delay(1500); // Give timeout watcher enough time to execute.
+        delay(1.5); // Give timeout watcher enough time to execute.
 
         $statementPool->execute();
 
@@ -84,7 +84,7 @@ class StatementPoolTest extends AsyncTestCase
 
         $statementPool->execute();
 
-        delay(1500); // Give timeout watcher enough time to execute.
+        delay(1.5); // Give timeout watcher enough time to execute.
 
         $statementPool->execute();
 

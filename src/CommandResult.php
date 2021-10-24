@@ -2,21 +2,24 @@
 
 namespace Amp\Sql\Common;
 
-use Amp\Promise;
+use Amp\Future;
+use Amp\Pipeline\Operator;
+use Amp\Pipeline\Pipeline;
 use Amp\Sql\Result;
-use function Amp\await;
+use function Amp\Pipeline\fromIterable;
 
 final class CommandResult implements Result, \IteratorAggregate
 {
-    private int $affectedRows;
+    private bool $disposed = false;
 
-    /** @var Promise<Result|null> */
-    private Promise $nextResult;
-
-    public function __construct(int $affectedRows, Promise $nextResult)
-    {
-        $this->affectedRows = $affectedRows;
-        $this->nextResult = $nextResult;
+    /**
+     * @param int $affectedRows
+     * @param Future<Result|null> $nextResult
+     */
+    public function __construct(
+        private int $affectedRows,
+        private Future $nextResult
+    ) {
     }
 
     public function continue(): ?array
@@ -26,7 +29,7 @@ final class CommandResult implements Result, \IteratorAggregate
 
     public function dispose(): void
     {
-        // No-op
+        $this->disposed = true;
     }
 
     public function getIterator(): \Traversable
@@ -41,7 +44,7 @@ final class CommandResult implements Result, \IteratorAggregate
 
     public function getNextResult(): ?Result
     {
-        return await($this->nextResult);
+        return $this->nextResult->await();
     }
 
     /**
@@ -50,5 +53,20 @@ final class CommandResult implements Result, \IteratorAggregate
     public function getRowCount(): int
     {
         return $this->affectedRows;
+    }
+
+    public function pipe(Operator ...$operators): Pipeline
+    {
+        return fromIterable([])->pipe(...$operators);
+    }
+
+    public function isComplete(): bool
+    {
+        return true;
+    }
+
+    public function isDisposed(): bool
+    {
+        return $this->disposed;
     }
 }

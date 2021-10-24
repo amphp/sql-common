@@ -2,10 +2,12 @@
 
 namespace Amp\Sql\Common;
 
-use Amp\Promise;
+use Amp\Future;
+use Amp\Pipeline\Operator;
+use Amp\Pipeline\Pipeline;
 use Amp\Sql\Result;
-use function Amp\async;
-use function Amp\await;
+use Revolt\EventLoop;
+use function Amp\coroutine;
 
 class PooledResult implements Result, \IteratorAggregate
 {
@@ -14,8 +16,8 @@ class PooledResult implements Result, \IteratorAggregate
     /** @var callable|null */
     private $release;
 
-    /** @var Promise<Result|null>|null */
-    private ?Promise $next = null;
+    /** @var Future<Result|null>|null */
+    private ?Future $next = null;
 
     /**
      * @param Result   $result  Result object created by pooled connection or statement.
@@ -30,7 +32,7 @@ class PooledResult implements Result, \IteratorAggregate
     public function __destruct()
     {
         if ($this->release !== null) {
-            ($this->release)();
+            EventLoop::queue($this->release);
         }
     }
 
@@ -60,9 +62,8 @@ class PooledResult implements Result, \IteratorAggregate
         $this->result->dispose();
 
         if ($this->release !== null) {
-            $release = $this->release;
+            EventLoop::queue($this->release);
             $this->release = null;
-            $release();
         }
     }
 
@@ -82,12 +83,12 @@ class PooledResult implements Result, \IteratorAggregate
             $this->next = $this->fetchNextResult();
         }
 
-        return await($this->next);
+        return $this->next->await();
     }
 
-    private function fetchNextResult(): Promise
+    private function fetchNextResult(): Future
     {
-        return async(function (): ?Result {
+        return coroutine(function (): ?Result {
             $result = $this->result->getNextResult();
 
             if ($result === null) {
@@ -100,5 +101,20 @@ class PooledResult implements Result, \IteratorAggregate
 
             return $result;
         });
+    }
+
+    public function pipe(Operator ...$operators): Pipeline
+    {
+        return $this->result->pipe(...$operators);
+    }
+
+    public function isComplete(): bool
+    {
+        return $this->result->isComplete();
+    }
+
+    public function isDisposed(): bool
+    {
+        return $this->result->isDisposed();
     }
 }
