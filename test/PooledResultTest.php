@@ -4,7 +4,6 @@ namespace Amp\Sql\Common\Test;
 
 use Amp\PHPUnit\AsyncTestCase;
 use Amp\Sql\Common\PooledResult;
-use Amp\Sql\Result;
 use function Amp\delay;
 
 class PooledResultTest extends AsyncTestCase
@@ -17,35 +16,37 @@ class PooledResultTest extends AsyncTestCase
             $invoked = true;
         };
 
-        $secondResult = $this->createMock(Result::class);
-        $secondResult->method('continue')
-            ->willReturnOnConsecutiveCalls(['column' => 'value'], null);
+        $secondResult = $this->createMock(PooledResult::class);
+        $secondResult->method('getIterator')
+            ->willReturn(new \ArrayIterator([['column' => 'value']]));
         $secondResult->method('getNextResult')
             ->willReturn(null);
 
-        $firstResult = $this->createMock(Result::class);
-        $firstResult->method('continue')
-            ->willReturnOnConsecutiveCalls(['column' => 'value'], null);
+        $firstResult = $this->createMock(PooledResult::class);
+        $firstResult->method('getIterator')
+            ->willReturn(new \ArrayIterator([['column' => 'value']]));
         $firstResult->method('getNextResult')
             ->willReturn($secondResult);
 
         $result = new PooledResult($firstResult, $release);
+        $iterator = $result->getIterator();
 
-        $this->assertSame(['column' => 'value'], $result->continue());
+        $this->assertSame(['column' => 'value'], $iterator->current());
 
         $this->assertFalse($invoked);
 
-        $this->assertNull($result->continue());
+        $iterator->next();
+        $this->assertFalse($iterator->valid());
 
         $this->assertFalse($invoked); // Next result set available.
 
         $result = $result->getNextResult();
+        $iterator = $result->getIterator();
 
-        $this->assertSame(['column' => 'value'], $result->continue());
+        $this->assertSame(['column' => 'value'], $iterator->current());
 
-        $this->assertFalse($invoked);
-
-        $this->assertNull($result->continue());
+        $iterator->next();
+        $this->assertFalse($iterator->valid());
 
         delay(0); // Tick event loop to resolve promise fetching next row.
 

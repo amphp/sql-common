@@ -3,8 +3,6 @@
 namespace Amp\Sql\Common;
 
 use Amp\Future;
-use Amp\Pipeline\Operator;
-use Amp\Pipeline\Pipeline;
 use Amp\Sql\Result;
 use Revolt\EventLoop;
 use function Amp\coroutine;
@@ -31,9 +29,7 @@ class PooledResult implements Result, \IteratorAggregate
 
     public function __destruct()
     {
-        if ($this->release !== null) {
-            EventLoop::queue($this->release);
-        }
+        $this->dispose();
     }
 
     protected function newInstanceFrom(Result $result, callable $release): self
@@ -41,26 +37,8 @@ class PooledResult implements Result, \IteratorAggregate
         return new self($result, $release);
     }
 
-    public function continue(): ?array
-    {
-        try {
-            $row = $this->result->continue();
-        } catch (\Throwable $exception) {
-            $this->dispose();
-            throw $exception;
-        }
-
-        if ($row === null && $this->next === null) {
-            $this->next = $this->fetchNextResult();
-        }
-
-        return $row;
-    }
-
     public function dispose(): void
     {
-        $this->result->dispose();
-
         if ($this->release !== null) {
             EventLoop::queue($this->release);
             $this->release = null;
@@ -69,7 +47,16 @@ class PooledResult implements Result, \IteratorAggregate
 
     public function getIterator(): \Traversable
     {
-        yield from $this->result;
+        try {
+            yield from $this->result;
+        } catch (\Throwable $exception) {
+            $this->dispose();
+            throw $exception;
+        }
+
+        if ($this->next === null) {
+            $this->next = $this->fetchNextResult();
+        }
     }
 
     public function getRowCount(): ?int
@@ -101,20 +88,5 @@ class PooledResult implements Result, \IteratorAggregate
 
             return $result;
         });
-    }
-
-    public function pipe(Operator ...$operators): Pipeline
-    {
-        return $this->result->pipe(...$operators);
-    }
-
-    public function isComplete(): bool
-    {
-        return $this->result->isComplete();
-    }
-
-    public function isDisposed(): bool
-    {
-        return $this->result->isDisposed();
     }
 }
