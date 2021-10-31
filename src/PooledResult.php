@@ -64,6 +64,11 @@ class PooledResult implements Result, \IteratorAggregate
         return $this->result->getRowCount();
     }
 
+    public function getColumnCount(): ?int
+    {
+        return $this->result->getColumnCount();
+    }
+
     public function getNextResult(): ?Result
     {
         if ($this->next === null) {

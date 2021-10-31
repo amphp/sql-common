@@ -34,4 +34,12 @@ final class CommandResult implements Result, \IteratorAggregate
     {
         return $this->affectedRows;
     }
+
+    /**
+     * @return int|null Always returns null for command results.
+     */
+    public function getColumnCount(): ?int
+    {
+        return null;
+    }
 }
