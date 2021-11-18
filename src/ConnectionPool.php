@@ -321,7 +321,7 @@ abstract class ConnectionPool implements Pool
             $this->connections->detach($connection);
         }
 
-        if ($this->deferred instanceof Deferred) {
+        if ($this->deferred instanceof Deferred && !$this->deferred->isResolved()) {
             $this->deferred->resolve($connection);
         }
     }
