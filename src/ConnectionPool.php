@@ -13,7 +13,7 @@ use Amp\Sql\Result;
 use Amp\Sql\Statement;
 use Amp\Sql\Transaction;
 use Revolt\EventLoop;
-use function Amp\coroutine;
+use function Amp\launch;
 
 abstract class ConnectionPool implements Pool
 {
@@ -251,7 +251,7 @@ abstract class ConnectionPool implements Pool
                     // Max connection count has not been reached, so open another connection.
                     try {
                         $connection = (
-                            $this->future = coroutine(fn() => $this->connector->connect($this->connectionConfig))
+                            $this->future = launch(fn() => $this->connector->connect($this->connectionConfig))
                         )->await();
                         /** @psalm-suppress DocblockTypeContradiction */
                         if (!$connection instanceof Link) {
