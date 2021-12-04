@@ -5,7 +5,7 @@ namespace Amp\Sql\Common;
 use Amp\Future;
 use Amp\Sql\Result;
 use Revolt\EventLoop;
-use function Amp\launch;
+use function Amp\async;
 
 class PooledResult implements Result, \IteratorAggregate
 {
@@ -80,7 +80,7 @@ class PooledResult implements Result, \IteratorAggregate
 
     private function fetchNextResult(): Future
     {
-        return launch(function (): ?Result {
+        return async(function (): ?Result {
             $result = $this->result->getNextResult();
 
             if ($result === null) {

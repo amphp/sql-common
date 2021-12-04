@@ -2,7 +2,7 @@
 
 namespace Amp\Sql\Common;
 
-use Amp\Deferred;
+use Amp\DeferredFuture;
 use Amp\Future;
 use Amp\Sql\ConnectionConfig;
 use Amp\Sql\Connector;
@@ -13,7 +13,7 @@ use Amp\Sql\Result;
 use Amp\Sql\Statement;
 use Amp\Sql\Transaction;
 use Revolt\EventLoop;
-use function Amp\launch;
+use function Amp\async;
 
 abstract class ConnectionPool implements Pool
 {
@@ -33,7 +33,7 @@ abstract class ConnectionPool implements Pool
     /** @var Future<Link>|null */
     private ?Future $future = null;
 
-    private ?Deferred $deferred = null;
+    private ?DeferredFuture $deferred = null;
 
     private int $idleTimeout;
 
@@ -189,7 +189,7 @@ abstract class ConnectionPool implements Pool
         }
         $this->idle = new \SplQueue;
 
-        if ($this->deferred instanceof Deferred) {
+        if ($this->deferred instanceof DeferredFuture) {
             $deferred = $this->deferred;
             $this->deferred = null;
             $deferred->error(new FailureException("Connection pool closed"));
@@ -251,7 +251,7 @@ abstract class ConnectionPool implements Pool
                     // Max connection count has not been reached, so open another connection.
                     try {
                         $connection = (
-                            $this->future = launch(fn() => $this->connector->connect($this->connectionConfig))
+                            $this->future = async(fn() => $this->connector->connect($this->connectionConfig))
                         )->await();
                         /** @psalm-suppress DocblockTypeContradiction */
                         if (!$connection instanceof Link) {
@@ -271,7 +271,7 @@ abstract class ConnectionPool implements Pool
 
                 // All possible connections busy, so wait until one becomes available.
                 try {
-                    $this->deferred = new Deferred;
+                    $this->deferred = new DeferredFuture;
                     // Connection will be pulled from $this->idle when future is resolved.
                     ($this->future = $this->deferred->getFuture())->await();
                 } finally {

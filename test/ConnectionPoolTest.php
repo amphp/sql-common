@@ -10,7 +10,7 @@ use Amp\Sql\Connector;
 use Amp\Sql\Link;
 use Amp\Sql\Result;
 use function Amp\delay;
-use function Amp\launch;
+use function Amp\async;
 
 class ConnectionPoolTest extends AsyncTestCase
 {
@@ -71,7 +71,7 @@ class ConnectionPoolTest extends AsyncTestCase
 
         $futures = [];
         for ($i = 0; $i < $count; ++$i) {
-            $futures[] = launch(fn() => $pool->query("SELECT $i"));
+            $futures[] = async(fn() => $pool->query("SELECT $i"));
         }
 
         $this->assertCount($count, Future\all($futures));
@@ -98,7 +98,7 @@ class ConnectionPoolTest extends AsyncTestCase
 
         $futures = [];
         for ($i = 0; $i < $count; ++$i) {
-            $futures[] = launch(fn() => $pool->query("SELECT $i"));
+            $futures[] = async(fn() => $pool->query("SELECT $i"));
         }
 
         $expectedRuntime = 0.1 * \ceil($count / $maxConnections);
