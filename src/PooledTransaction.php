@@ -6,6 +6,7 @@ use Amp\Sql\Result;
 use Amp\Sql\Statement;
 use Amp\Sql\Transaction;
 use Amp\Sql\TransactionError;
+use Amp\Sql\TransactionIsolation;
 use Revolt\EventLoop;
 
 abstract class PooledTransaction implements Transaction
@@ -131,11 +132,11 @@ abstract class PooledTransaction implements Transaction
         $transaction = $this->transaction;
         $this->transaction = null;
 
-        $transaction->commit();
+        $transaction->rollback();
         ($this->release)();
     }
 
-    public function getIsolationLevel(): int
+    public function getIsolationLevel(): TransactionIsolation
     {
         if (!$this->transaction) {
             throw new TransactionError("The transaction has been committed or rolled back");

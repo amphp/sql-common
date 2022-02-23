@@ -12,23 +12,24 @@ use Amp\Sql\Pool;
 use Amp\Sql\Result;
 use Amp\Sql\Statement;
 use Amp\Sql\Transaction;
+use Amp\Sql\TransactionIsolation;
 use Revolt\EventLoop;
 use function Amp\async;
 
 abstract class ConnectionPool implements Pool
 {
-    const DEFAULT_MAX_CONNECTIONS = 100;
-    const DEFAULT_IDLE_TIMEOUT = 60;
+    public const DEFAULT_MAX_CONNECTIONS = 100;
+    public const DEFAULT_IDLE_TIMEOUT = 60;
 
-    private Connector $connector;
+    private readonly Connector $connector;
 
-    private ConnectionConfig $connectionConfig;
+    private readonly ConnectionConfig $connectionConfig;
 
-    private int $maxConnections;
+    private readonly int $maxConnections;
 
-    private \SplQueue $idle;
+    private readonly \SplQueue $idle;
 
-    private \SplObjectStorage $connections;
+    private readonly \SplObjectStorage $connections;
 
     /** @var Future<Link>|null */
     private ?Future $future = null;
@@ -37,7 +38,7 @@ abstract class ConnectionPool implements Pool
 
     private int $idleTimeout;
 
-    private string $timeoutWatcher;
+    private readonly string $timeoutWatcher;
 
     private bool $closed = false;
 
@@ -388,13 +389,12 @@ abstract class ConnectionPool implements Pool
     /**
      * {@inheritdoc}
      */
-    public function beginTransaction(int $isolation = Transaction::ISOLATION_COMMITTED): Transaction
+    public function beginTransaction(TransactionIsolation $isolation = TransactionIsolation::COMMITTED): Transaction
     {
         $connection = $this->pop();
 
         try {
             $transaction = $connection->beginTransaction($isolation);
-            \assert($transaction instanceof Transaction);
         } catch (\Throwable $exception) {
             $this->push($connection);
             throw $exception;

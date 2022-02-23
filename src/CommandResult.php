@@ -12,8 +12,8 @@ final class CommandResult implements Result, \IteratorAggregate
      * @param Future<Result|null> $nextResult
      */
     public function __construct(
-        private int $affectedRows,
-        private Future $nextResult
+        private readonly int $affectedRows,
+        private readonly Future $nextResult
     ) {
     }
 

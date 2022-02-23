@@ -8,18 +8,19 @@ use Revolt\EventLoop;
 
 class PooledStatement implements Statement
 {
-    private Statement $statement;
+    private readonly Statement $statement;
 
-    /** @var callable */
-    private $release;
+    /** @var \Closure():void */
+    private readonly \Closure $release;
 
     private int $refCount = 1;
 
     /**
      * @param Statement $statement Statement object created by pooled connection.
-     * @param callable  $release   Callable to be invoked when the statement and any associated results are destroyed.
+     * @param \Closure():void $release Callable to be invoked when the statement and any associated results are
+     *     destroyed.
      */
-    public function __construct(Statement $statement, callable $release)
+    public function __construct(Statement $statement, \Closure $release)
     {
         $this->statement = $statement;
 
@@ -40,7 +41,7 @@ class PooledStatement implements Statement
      * Creates a ResultSet of the appropriate type using the ResultSet object returned by the Statement object and
      * the given release callable.
      *
-     * @param Result   $result
+     * @param Result $result
      * @param callable $release
      *
      * @return Result

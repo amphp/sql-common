@@ -10,18 +10,13 @@ use Amp\Sql\Link;
 
 final class RetryConnector implements Connector
 {
-    private Connector $connector;
-
-    private int $maxTries;
-
-    public function __construct(Connector $connector, int $maxTries = 3)
-    {
+    public function __construct(
+        private readonly Connector $connector,
+        private readonly int $maxTries = 3,
+    ) {
         if ($maxTries <= 0) {
             throw new \Error('The number of tries must be 1 or greater');
         }
-
-        $this->connector = $connector;
-        $this->maxTries = $maxTries;
     }
 
     public function connect(ConnectionConfig $config): Link

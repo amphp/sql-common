@@ -9,19 +9,19 @@ use function Amp\async;
 
 class PooledResult implements Result, \IteratorAggregate
 {
-    private Result $result;
+    private readonly Result $result;
 
-    /** @var callable|null */
-    private $release;
+    /** @var null|\Closure():void */
+    private ?\Closure $release;
 
     /** @var Future<Result|null>|null */
     private ?Future $next = null;
 
     /**
-     * @param Result   $result  Result object created by pooled connection or statement.
-     * @param callable $release Callable to be invoked when the result set is destroyed.
+     * @param Result $result Result object created by pooled connection or statement.
+     * @param \Closure():void $release Callable to be invoked when the result set is destroyed.
      */
-    public function __construct(Result $result, callable $release)
+    public function __construct(Result $result, \Closure $release)
     {
         $this->result = $result;
         $this->release = $release;
@@ -32,7 +32,7 @@ class PooledResult implements Result, \IteratorAggregate
         $this->dispose();
     }
 
-    protected function newInstanceFrom(Result $result, callable $release): self
+    protected function newInstanceFrom(Result $result, \Closure $release): self
     {
         return new self($result, $release);
     }

@@ -9,18 +9,18 @@ use Revolt\EventLoop;
 
 abstract class StatementPool implements Statement
 {
-    private Pool $pool;
+    private readonly Pool $pool;
 
-    private \SplQueue $statements;
+    private readonly \SplQueue $statements;
 
-    private string $sql;
+    private readonly string $sql;
 
     private int $lastUsedAt;
 
-    private string $timeoutWatcher;
+    private readonly string $timeoutWatcher;
 
-    /** @var callable */
-    private $prepare;
+    /** @var \Closure(string):Statement */
+    private readonly \Closure $prepare;
 
     /**
      * Performs any necessary actions to the statement to prepare it for execution, returning a promise for the same or
@@ -33,7 +33,7 @@ abstract class StatementPool implements Statement
     abstract protected function prepare(Statement $statement): Statement;
 
     /**
-     * @param Result   $result
+     * @param Result $result
      * @param callable $release
      *
      * @return Result
@@ -44,11 +44,11 @@ abstract class StatementPool implements Statement
     }
 
     /**
-     * @param Pool     $pool      Pool used to prepare statements for execution.
-     * @param string   $sql       SQL statement to prepare
-     * @param callable $prepare   Callable that returns a new prepared statement.
+     * @param Pool $pool Pool used to prepare statements for execution.
+     * @param string $sql SQL statement to prepare
+     * @param \Closure(string):Statement $prepare Callable that returns a new prepared statement.
      */
-    public function __construct(Pool $pool, string $sql, callable $prepare)
+    public function __construct(Pool $pool, string $sql, \Closure $prepare)
     {
         $this->lastUsedAt = \time();
         $this->statements = $statements = new \SplQueue;
