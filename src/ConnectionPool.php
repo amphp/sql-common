@@ -188,7 +188,10 @@ abstract class ConnectionPool implements Pool
         foreach ($this->connections as $connection) {
             $connection->close();
         }
-        $this->idle = new \SplQueue;
+
+        while (!$this->idle->isEmpty()) {
+            $this->idle->dequeue();
+        }
 
         if ($this->deferred instanceof DeferredFuture) {
             $deferred = $this->deferred;
