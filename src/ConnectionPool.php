@@ -54,37 +54,37 @@ abstract class ConnectionPool implements Pool
      * given release callable.
      *
      * @param Statement $statement
-     * @param callable  $release
+     * @param \Closure(string):Statement $release
      *
      * @return Statement
      */
-    abstract protected function createStatement(Statement $statement, callable $release): Statement;
+    abstract protected function createStatement(Statement $statement, \Closure $release): Statement;
 
     /**
-     * @param Pool     $pool
-     * @param string   $sql
-     * @param callable $prepare
+     * @param Pool $pool
+     * @param string $sql
+     * @param \Closure(string):StatementPool $prepare
      *
      * @return StatementPool
      */
-    abstract protected function createStatementPool(Pool $pool, string $sql, callable $prepare): StatementPool;
+    abstract protected function createStatementPool(Pool $pool, string $sql, \Closure $prepare): StatementPool;
 
     /**
      * Creates a Transaction of the appropriate type using the Transaction object returned by the Link object and the
      * given release callable.
      *
      * @param Transaction $transaction
-     * @param callable    $release
+     * @param \Closure():void $release
      *
      * @return Transaction
      */
-    abstract protected function createTransaction(Transaction $transaction, callable $release): Transaction;
+    abstract protected function createTransaction(Transaction $transaction, \Closure $release): Transaction;
 
     /**
      * @param ConnectionConfig $config
-     * @param int              $maxConnections Maximum number of active connections in the pool.
-     * @param int              $idleTimeout    Number of seconds until idle connections are removed from the pool.
-     * @param Connector|null   $connector
+     * @param int $maxConnections Maximum number of active connections in the pool.
+     * @param int $idleTimeout Number of seconds until idle connections are removed from the pool.
+     * @param Connector|null $connector
      */
     public function __construct(
         ConnectionConfig $config,
@@ -140,12 +140,12 @@ abstract class ConnectionPool implements Pool
      * Creates a ResultSet of the appropriate type using the ResultSet object returned by the Link object and the
      * given release callable.
      *
-     * @param Result   $result
-     * @param callable $release
+     * @param Result $result
+     * @param \Closure():void $release
      *
      * @return Result
      */
-    protected function createResult(Result $result, callable $release): Result
+    protected function createResult(Result $result, \Closure $release): Result
     {
         return new PooledResult($result, $release);
     }
@@ -255,7 +255,7 @@ abstract class ConnectionPool implements Pool
                     // Max connection count has not been reached, so open another connection.
                     try {
                         $connection = (
-                            $this->future = async(fn() => $this->connector->connect($this->connectionConfig))
+                        $this->future = async(fn () => $this->connector->connect($this->connectionConfig))
                         )->await();
                         /** @psalm-suppress DocblockTypeContradiction */
                         if (!$connection instanceof Link) {
@@ -360,7 +360,7 @@ abstract class ConnectionPool implements Pool
      */
     public function prepare(string $sql): Statement
     {
-        return $this->createStatementPool($this, $sql, \Closure::fromCallable([$this, "prepareStatement"]));
+        return $this->createStatementPool($this, $sql, $this->prepareStatement(...));
     }
 
     /**

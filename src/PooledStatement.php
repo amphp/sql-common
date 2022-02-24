@@ -42,11 +42,11 @@ class PooledStatement implements Statement
      * the given release callable.
      *
      * @param Result $result
-     * @param callable $release
+     * @param \Closure():void $release
      *
      * @return Result
      */
-    protected function createResult(Result $result, callable $release): Result
+    protected function createResult(Result $result, \Closure $release): Result
     {
         return new PooledResult($result, $release);
     }
