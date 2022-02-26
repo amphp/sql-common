@@ -370,7 +370,7 @@ abstract class ConnectionPool implements Pool
     /**
      * {@inheritdoc}
      */
-    public function beginTransaction(TransactionIsolation $isolation = TransactionIsolation::COMMITTED): Transaction
+    public function beginTransaction(TransactionIsolation $isolation = TransactionIsolation::Committed): Transaction
     {
         $connection = $this->pop();
 
