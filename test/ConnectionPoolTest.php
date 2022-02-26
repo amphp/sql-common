@@ -107,8 +107,9 @@ class ConnectionPoolTest extends AsyncTestCase
         $this->setTimeout($expectedRuntime + 0.1);
 
         foreach ($futures as $future) {
+            /** @var Result $result */
             $result = $future->await();
-            $result->dispose();
+            \iterator_to_array($result);
         }
 
         $this->assertSame($maxConnections, $pool->getConnectionCount());

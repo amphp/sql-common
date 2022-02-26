@@ -11,8 +11,8 @@ class PooledResult implements Result, \IteratorAggregate
 {
     private readonly Result $result;
 
-    /** @var null|\Closure():void */
-    private ?\Closure $release;
+    /** @var \Closure():void */
+    private readonly \Closure $release;
 
     /** @var Future<Result|null>|null */
     private ?Future $next = null;
@@ -32,16 +32,18 @@ class PooledResult implements Result, \IteratorAggregate
         $this->dispose();
     }
 
+    /**
+     * @param \Closure():void $release
+     */
     protected function newInstanceFrom(Result $result, \Closure $release): self
     {
         return new self($result, $release);
     }
 
-    public function dispose(): void
+    private function dispose(): void
     {
-        if ($this->release !== null) {
-            EventLoop::queue($this->release);
-            $this->release = null;
+        if ($this->next === null) {
+            $this->next = $this->fetchNextResult();
         }
     }
 
@@ -49,13 +51,8 @@ class PooledResult implements Result, \IteratorAggregate
     {
         try {
             yield from $this->result;
-        } catch (\Throwable $exception) {
+        } finally {
             $this->dispose();
-            throw $exception;
-        }
-
-        if ($this->next === null) {
-            $this->next = $this->fetchNextResult();
         }
     }
 
@@ -84,14 +81,11 @@ class PooledResult implements Result, \IteratorAggregate
             $result = $this->result->getNextResult();
 
             if ($result === null) {
-                $this->dispose();
+                EventLoop::queue($this->release);
                 return null;
             }
 
-            $result = $this->newInstanceFrom($result, $this->release);
-            $this->release = null;
-
-            return $result;
+            return $this->newInstanceFrom($result, $this->release);
         });
     }
 }

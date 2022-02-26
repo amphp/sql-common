@@ -14,8 +14,8 @@ abstract class PooledTransaction implements Transaction
     /** @var Transaction|null */
     private ?Transaction $transaction;
 
-    /** @var callable */
-    private $release;
+    /** @var \Closure():void */
+    private \Closure $release;
 
     /** @var int */
     private int $refCount = 1;

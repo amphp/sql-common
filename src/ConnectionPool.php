@@ -54,7 +54,7 @@ abstract class ConnectionPool implements Pool
      * given release callable.
      *
      * @param Statement $statement
-     * @param \Closure(string):Statement $release
+     * @param \Closure(string):void $release
      *
      * @return Statement
      */
@@ -63,7 +63,7 @@ abstract class ConnectionPool implements Pool
     /**
      * @param Pool $pool
      * @param string $sql
-     * @param \Closure(string):StatementPool $prepare
+     * @param \Closure(string):Statement $prepare
      *
      * @return StatementPool
      */
@@ -123,6 +123,7 @@ abstract class ConnectionPool implements Pool
 
                 // Close connection and remove it from the pool.
                 $idle->shift();
+                /** @psalm-suppress InvalidArgument SplObjectStorage::detach() expects an argument. */
                 $connections->detach($connection);
                 $connection->close();
             }
