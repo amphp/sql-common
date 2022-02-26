@@ -41,10 +41,7 @@ class PooledStatement implements Statement
      * Creates a ResultSet of the appropriate type using the ResultSet object returned by the Statement object and
      * the given release callable.
      *
-     * @param Result $result
      * @param \Closure():void $release
-     *
-     * @return Result
      */
     protected function createResult(Result $result, \Closure $release): Result
     {

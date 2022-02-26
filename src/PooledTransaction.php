@@ -11,23 +11,18 @@ use Revolt\EventLoop;
 
 abstract class PooledTransaction implements Transaction
 {
-    /** @var Transaction|null */
     private ?Transaction $transaction;
 
     /** @var \Closure():void */
     private \Closure $release;
 
-    /** @var int */
     private int $refCount = 1;
 
     /**
      * Creates a Statement of the appropriate type using the Statement object returned by the Transaction object and
      * the given release callable.
      *
-     * @param Statement $statement
      * @param \Closure():void $release
-     *
-     * @return Statement
      */
     abstract protected function createStatement(Statement $statement, \Closure $release): Statement;
 
@@ -35,10 +30,7 @@ abstract class PooledTransaction implements Transaction
      * Creates a ResultSet of the appropriate type using the ResultSet object returned by the Transaction object and
      * the given release callable.
      *
-     * @param Result $result
      * @param \Closure():void $release
-     *
-     * @return Result
      */
     protected function createResult(Result $result, \Closure $release): Result
     {

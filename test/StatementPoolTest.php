@@ -29,7 +29,7 @@ class StatementPoolTest extends AsyncTestCase
             ->method('execute');
 
         $statementPool = $this->getMockBuilder(StatementPool::class)
-            ->setConstructorArgs([$pool, 'SELECT 1', $this->createCallback(1, fn() => $statement)])
+            ->setConstructorArgs([$pool, 'SELECT 1', $this->createCallback(1, fn () => $statement)])
             ->getMockForAbstractClass();
 
         $statementPool->method('prepare')

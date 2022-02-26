@@ -25,18 +25,11 @@ abstract class StatementPool implements Statement
     /**
      * Performs any necessary actions to the statement to prepare it for execution, returning a promise for the same or
      * a new Statement object if necessary.
-     *
-     * @param Statement $statement
-     *
-     * @return Statement
      */
     abstract protected function prepare(Statement $statement): Statement;
 
     /**
-     * @param Result $result
      * @param \Closure():void $release
-     *
-     * @return Result
      */
     protected function createResult(Result $result, \Closure $release): Result
     {
@@ -107,8 +100,6 @@ abstract class StatementPool implements Statement
     /**
      * Only retains statements if less than 10% of the pool is consumed by this statement and the pool has
      * available connections.
-     *
-     * @param Statement $statement
      */
     protected function push(Statement $statement): void
     {

@@ -44,8 +44,6 @@ abstract class ConnectionPool implements Pool
 
     /**
      * Create a default connector object based on the library of the extending class.
-     *
-     * @return Connector
      */
     abstract protected function createDefaultConnector(): Connector;
 
@@ -53,19 +51,12 @@ abstract class ConnectionPool implements Pool
      * Creates a Statement of the appropriate type using the Statement object returned by the Link object and the
      * given release callable.
      *
-     * @param Statement $statement
      * @param \Closure(string):void $release
-     *
-     * @return Statement
      */
     abstract protected function createStatement(Statement $statement, \Closure $release): Statement;
 
     /**
-     * @param Pool $pool
-     * @param string $sql
      * @param \Closure(string):Statement $prepare
-     *
-     * @return StatementPool
      */
     abstract protected function createStatementPool(Pool $pool, string $sql, \Closure $prepare): StatementPool;
 
@@ -73,18 +64,13 @@ abstract class ConnectionPool implements Pool
      * Creates a Transaction of the appropriate type using the Transaction object returned by the Link object and the
      * given release callable.
      *
-     * @param Transaction $transaction
      * @param \Closure():void $release
-     *
-     * @return Transaction
      */
     abstract protected function createTransaction(Transaction $transaction, \Closure $release): Transaction;
 
     /**
-     * @param ConnectionConfig $config
      * @param int $maxConnections Maximum number of active connections in the pool.
      * @param int $idleTimeout Number of seconds until idle connections are removed from the pool.
-     * @param Connector|null $connector
      */
     public function __construct(
         ConnectionConfig $config,
@@ -141,10 +127,7 @@ abstract class ConnectionPool implements Pool
      * Creates a ResultSet of the appropriate type using the ResultSet object returned by the Link object and the
      * given release callable.
      *
-     * @param Result $result
      * @param \Closure():void $release
-     *
-     * @return Result
      */
     protected function createResult(Result $result, \Closure $release): Result
     {
@@ -172,9 +155,6 @@ abstract class ConnectionPool implements Pool
         return $time;
     }
 
-    /**
-     * @return bool
-     */
     public function isAlive(): bool
     {
         return !$this->closed;
@@ -256,7 +236,7 @@ abstract class ConnectionPool implements Pool
                     // Max connection count has not been reached, so open another connection.
                     try {
                         $connection = (
-                        $this->future = async(fn () => $this->connector->connect($this->connectionConfig))
+                            $this->future = async(fn () => $this->connector->connect($this->connectionConfig))
                         )->await();
                         /** @psalm-suppress DocblockTypeContradiction */
                         if (!$connection instanceof Link) {
@@ -299,7 +279,6 @@ abstract class ConnectionPool implements Pool
     }
 
     /**
-     * @param Link $connection
      *
      * @throws \Error If the connection is not part of this pool.
      */
@@ -367,9 +346,7 @@ abstract class ConnectionPool implements Pool
     /**
      * Prepares a new statement on an available connection.
      *
-     * @param string $sql
      *
-     * @return Statement
      *
      * @throws FailureException
      */
