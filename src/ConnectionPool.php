@@ -51,7 +51,7 @@ abstract class ConnectionPool implements Pool
      * Creates a Statement of the appropriate type using the Statement object returned by the Link object and the
      * given release callable.
      *
-     * @param \Closure(string):void $release
+     * @param \Closure():void $release
      */
     abstract protected function createStatement(Statement $statement, \Closure $release): Statement;
 
