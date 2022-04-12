@@ -4,12 +4,12 @@ namespace Amp\Sql\Common;
 
 use Amp\DeferredFuture;
 use Amp\Future;
-use Amp\Sql\ConnectionConfig;
-use Amp\Sql\Connector;
-use Amp\Sql\FailureException;
 use Amp\Sql\Link;
 use Amp\Sql\Pool;
 use Amp\Sql\Result;
+use Amp\Sql\SqlConfig;
+use Amp\Sql\SqlConnector;
+use Amp\Sql\SqlException;
 use Amp\Sql\Statement;
 use Amp\Sql\Transaction;
 use Amp\Sql\TransactionIsolation;
@@ -21,9 +21,9 @@ abstract class ConnectionPool implements Pool
     public const DEFAULT_MAX_CONNECTIONS = 100;
     public const DEFAULT_IDLE_TIMEOUT = 60;
 
-    private readonly Connector $connector;
+    private readonly SqlConnector $connector;
 
-    private readonly ConnectionConfig $connectionConfig;
+    private readonly SqlConfig $connectionConfig;
 
     private readonly int $maxConnections;
 
@@ -45,7 +45,7 @@ abstract class ConnectionPool implements Pool
     /**
      * Create a default connector object based on the library of the extending class.
      */
-    abstract protected function createDefaultConnector(): Connector;
+    abstract protected function createDefaultConnector(): SqlConnector;
 
     /**
      * Creates a Statement of the appropriate type using the Statement object returned by the Link object and the
@@ -73,10 +73,10 @@ abstract class ConnectionPool implements Pool
      * @param int $idleTimeout Number of seconds until idle connections are removed from the pool.
      */
     public function __construct(
-        ConnectionConfig $config,
+        SqlConfig $config,
         int $maxConnections = self::DEFAULT_MAX_CONNECTIONS,
         int $idleTimeout = self::DEFAULT_IDLE_TIMEOUT,
-        Connector $connector = null
+        SqlConnector $connector = null
     ) {
         $this->connector = $connector ?? $this->createDefaultConnector();
 
@@ -177,7 +177,7 @@ abstract class ConnectionPool implements Pool
         if ($this->deferred instanceof DeferredFuture) {
             $deferred = $this->deferred;
             $this->deferred = null;
-            $deferred->error(new FailureException("Connection pool closed"));
+            $deferred->error(new SqlException("Connection pool closed"));
         }
     }
 
@@ -216,7 +216,7 @@ abstract class ConnectionPool implements Pool
     }
 
     /**
-     * @throws FailureException If creating a new connection fails.
+     * @throws SqlException If creating a new connection fails.
      * @throws \Error If the pool has been closed.
      */
     protected function pop(): Link
@@ -275,7 +275,7 @@ abstract class ConnectionPool implements Pool
             $this->connections->detach($connection);
         } while (!$this->closed);
 
-        throw new FailureException("Pool closed before an active connection could be obtained");
+        throw new SqlException("Pool closed before an active connection could be obtained");
     }
 
     /**
@@ -348,7 +348,7 @@ abstract class ConnectionPool implements Pool
      *
      *
      *
-     * @throws FailureException
+     * @throws SqlException
      */
     private function prepareStatement(string $sql): Statement
     {

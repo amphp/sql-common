@@ -3,24 +3,24 @@
 namespace Amp\Sql\Common\Test;
 
 use Amp\PHPUnit\AsyncTestCase;
-use Amp\Sql\Common\RetryConnector;
-use Amp\Sql\ConnectionConfig;
+use Amp\Sql\Common\RetrySqlConnector;
 use Amp\Sql\ConnectionException;
-use Amp\Sql\Connector;
 use Amp\Sql\Link;
+use Amp\Sql\SqlConfig;
+use Amp\Sql\SqlConnector;
 
-class RetryConnectorTest extends AsyncTestCase
+class RetrySqlConnectorTest extends AsyncTestCase
 {
     public function testSuccessfulConnect()
     {
-        $connector = $this->createMock(Connector::class);
+        $connector = $this->createMock(SqlConnector::class);
         $connector->expects($this->once())
             ->method('connect')
             ->willReturn($this->createMock(Link::class));
 
-        $retry = new RetryConnector($connector);
+        $retry = new RetrySqlConnector($connector);
 
-        $config = $this->getMockBuilder(ConnectionConfig::class)
+        $config = $this->getMockBuilder(SqlConfig::class)
             ->setConstructorArgs(['localhost', 5432])
             ->getMockForAbstractClass();
 
@@ -31,7 +31,7 @@ class RetryConnectorTest extends AsyncTestCase
 
     public function testFirstTryFailConnect()
     {
-        $connector = $this->createMock(Connector::class);
+        $connector = $this->createMock(SqlConnector::class);
         $connector->expects($this->exactly(2))
             ->method('connect')
             ->willReturnCallback(function (): Link {
@@ -45,9 +45,9 @@ class RetryConnectorTest extends AsyncTestCase
                 return $this->createMock(Link::class);
             });
 
-        $retry = new RetryConnector($connector);
+        $retry = new RetrySqlConnector($connector);
 
-        $config = $this->getMockBuilder(ConnectionConfig::class)
+        $config = $this->getMockBuilder(SqlConfig::class)
             ->setConstructorArgs(['localhost', 5432])
             ->getMockForAbstractClass();
 
@@ -60,14 +60,14 @@ class RetryConnectorTest extends AsyncTestCase
     {
         $tries = 3;
 
-        $connector = $this->createMock(Connector::class);
+        $connector = $this->createMock(SqlConnector::class);
         $connector->expects($this->exactly($tries))
             ->method('connect')
             ->willThrowException(new ConnectionException);
 
-        $retry = new RetryConnector($connector, $tries);
+        $retry = new RetrySqlConnector($connector, $tries);
 
-        $config = $this->getMockBuilder(ConnectionConfig::class)
+        $config = $this->getMockBuilder(SqlConfig::class)
             ->setConstructorArgs(['localhost', 5432])
             ->getMockForAbstractClass();
 

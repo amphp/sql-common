@@ -5,10 +5,10 @@ namespace Amp\Sql\Common\Test;
 use Amp\Future;
 use Amp\PHPUnit\AsyncTestCase;
 use Amp\Sql\Common\ConnectionPool;
-use Amp\Sql\ConnectionConfig;
-use Amp\Sql\Connector;
 use Amp\Sql\Link;
 use Amp\Sql\Result;
+use Amp\Sql\SqlConfig;
+use Amp\Sql\SqlConnector;
 use function Amp\async;
 use function Amp\delay;
 
@@ -20,15 +20,15 @@ class ConnectionPoolTest extends AsyncTestCase
         $this->expectExceptionMessage('Pool must contain at least one connection');
 
         $this->getMockBuilder(ConnectionPool::class)
-            ->setConstructorArgs([$this->createMock(ConnectionConfig::class), 0])
+            ->setConstructorArgs([$this->createMock(SqlConfig::class), 0])
             ->getMock();
     }
 
-    private function createConnector(): Connector
+    private function createConnector(): SqlConnector
     {
         $now = \time();
 
-        $connector = $this->createMock(Connector::class);
+        $connector = $this->createMock(SqlConnector::class);
         $connector->method('connect')
             ->willReturnCallback(function () use ($now): Link {
                 $link = $this->createMock(Link::class);
@@ -50,11 +50,11 @@ class ConnectionPoolTest extends AsyncTestCase
         return $connector;
     }
 
-    private function createPool(Connector $connector, int $maxConnections = 100, int $idleTimeout = 10): ConnectionPool
+    private function createPool(SqlConnector $connector, int $maxConnections = 100, int $idleTimeout = 10): ConnectionPool
     {
         return $this->getMockBuilder(ConnectionPool::class)
             ->setConstructorArgs([
-                $this->createMock(ConnectionConfig::class),
+                $this->createMock(SqlConfig::class),
                 $maxConnections,
                 $idleTimeout,
                 $connector

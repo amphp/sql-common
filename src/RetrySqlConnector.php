@@ -3,15 +3,15 @@
 namespace Amp\Sql\Common;
 
 use Amp\CompositeException;
-use Amp\Sql\ConnectionConfig;
 use Amp\Sql\ConnectionException;
-use Amp\Sql\Connector;
 use Amp\Sql\Link;
+use Amp\Sql\SqlConfig;
+use Amp\Sql\SqlConnector;
 
-final class RetryConnector implements Connector
+final class RetrySqlConnector implements SqlConnector
 {
     public function __construct(
-        private readonly Connector $connector,
+        private readonly SqlConnector $connector,
         private readonly int $maxTries = 3,
     ) {
         if ($maxTries <= 0) {
@@ -19,7 +19,7 @@ final class RetryConnector implements Connector
         }
     }
 
-    public function connect(ConnectionConfig $config): Link
+    public function connect(SqlConfig $config): Link
     {
         $tries = 0;
         $exceptions = [];
