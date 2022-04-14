@@ -2,6 +2,7 @@
 
 namespace Amp\Sql\Common;
 
+use Amp\Cancellation;
 use Amp\CompositeException;
 use Amp\Sql\ConnectionException;
 use Amp\Sql\Link;
@@ -19,7 +20,7 @@ final class RetrySqlConnector implements SqlConnector
         }
     }
 
-    public function connect(SqlConfig $config): Link
+    public function connect(SqlConfig $config, ?Cancellation $cancellation = null): Link
     {
         $tries = 0;
         $exceptions = [];
