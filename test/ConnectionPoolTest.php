@@ -20,7 +20,11 @@ class ConnectionPoolTest extends AsyncTestCase
         $this->expectExceptionMessage('Pool must contain at least one connection');
 
         $this->getMockBuilder(ConnectionPool::class)
-            ->setConstructorArgs([$this->createMock(SqlConfig::class), 0])
+            ->setConstructorArgs([
+                $this->createMock(SqlConfig::class),
+                $this->createMock(SqlConnector::class),
+                0,
+            ])
             ->getMock();
     }
 
@@ -55,9 +59,9 @@ class ConnectionPoolTest extends AsyncTestCase
         return $this->getMockBuilder(ConnectionPool::class)
             ->setConstructorArgs([
                 $this->createMock(SqlConfig::class),
+                $connector,
                 $maxConnections,
                 $idleTimeout,
-                $connector
             ])
             ->getMockForAbstractClass();
     }

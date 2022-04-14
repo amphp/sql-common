@@ -21,12 +21,6 @@ abstract class ConnectionPool implements Pool
     public const DEFAULT_MAX_CONNECTIONS = 100;
     public const DEFAULT_IDLE_TIMEOUT = 60;
 
-    private readonly SqlConnector $connector;
-
-    private readonly SqlConfig $connectionConfig;
-
-    private readonly int $maxConnections;
-
     private readonly \SplQueue $idle;
 
     private readonly \SplObjectStorage $connections;
@@ -36,16 +30,9 @@ abstract class ConnectionPool implements Pool
 
     private ?DeferredFuture $deferred = null;
 
-    private int $idleTimeout;
-
     private readonly string $timeoutWatcher;
 
     private bool $closed = false;
-
-    /**
-     * Create a default connector object based on the library of the extending class.
-     */
-    abstract protected function createDefaultConnector(): SqlConnector;
 
     /**
      * Creates a Statement of the appropriate type using the Statement object returned by the Link object and the
@@ -69,25 +56,21 @@ abstract class ConnectionPool implements Pool
     abstract protected function createTransaction(Transaction $transaction, \Closure $release): Transaction;
 
     /**
-     * @param int $maxConnections Maximum number of active connections in the pool.
-     * @param int $idleTimeout Number of seconds until idle connections are removed from the pool.
+     * @param positive-int $maxConnections Maximum number of active connections in the pool.
+     * @param positive-int $idleTimeout Number of seconds until idle connections are removed from the pool.
      */
     public function __construct(
-        SqlConfig $config,
-        int $maxConnections = self::DEFAULT_MAX_CONNECTIONS,
-        int $idleTimeout = self::DEFAULT_IDLE_TIMEOUT,
-        SqlConnector $connector = null
+        private readonly SqlConfig $config,
+        private readonly SqlConnector $connector,
+        private readonly int $maxConnections = self::DEFAULT_MAX_CONNECTIONS,
+        private int $idleTimeout = self::DEFAULT_IDLE_TIMEOUT,
     ) {
-        $this->connector = $connector ?? $this->createDefaultConnector();
-
-        $this->connectionConfig = $config;
-
-        $this->idleTimeout = $idleTimeout;
+        /** @psalm-suppress TypeDoesNotContainType */
         if ($this->idleTimeout < 1) {
             throw new \Error("The idle timeout must be 1 or greater");
         }
 
-        $this->maxConnections = $maxConnections;
+        /** @psalm-suppress TypeDoesNotContainType */
         if ($this->maxConnections < 1) {
             throw new \Error("Pool must contain at least one connection");
         }
@@ -236,7 +219,7 @@ abstract class ConnectionPool implements Pool
                     // Max connection count has not been reached, so open another connection.
                     try {
                         $connection = (
-                            $this->future = async(fn () => $this->connector->connect($this->connectionConfig))
+                            $this->future = async(fn () => $this->connector->connect($this->config))
                         )->await();
                         /** @psalm-suppress DocblockTypeContradiction */
                         if (!$connection instanceof Link) {
