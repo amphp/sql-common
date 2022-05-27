@@ -13,6 +13,7 @@ use Amp\Sql\SqlException;
 use Amp\Sql\Statement;
 use Amp\Sql\Transaction;
 use Amp\Sql\TransactionIsolation;
+use Amp\Sql\TransactionIsolationLevel;
 use Revolt\EventLoop;
 use function Amp\async;
 
@@ -353,8 +354,9 @@ abstract class ConnectionPool implements Pool
     /**
      * {@inheritdoc}
      */
-    public function beginTransaction(TransactionIsolation $isolation = TransactionIsolation::Committed): Transaction
-    {
+    public function beginTransaction(
+        TransactionIsolation $isolation = TransactionIsolationLevel::Committed
+    ): Transaction {
         $connection = $this->pop();
 
         try {
