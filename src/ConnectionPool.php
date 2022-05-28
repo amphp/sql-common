@@ -165,9 +165,6 @@ abstract class ConnectionPool implements Pool
         }
     }
 
-    /**
-     * {@inheritdoc}
-     */
     public function extractConnection(): Link
     {
         $connection = $this->pop();
@@ -175,25 +172,16 @@ abstract class ConnectionPool implements Pool
         return $connection;
     }
 
-    /**
-     * {@inheritdoc}
-     */
     public function getConnectionCount(): int
     {
         return $this->connections->count();
     }
 
-    /**
-     * {@inheritdoc}
-     */
     public function getIdleConnectionCount(): int
     {
         return $this->idle->count();
     }
 
-    /**
-     * {@inheritdoc}
-     */
     public function getConnectionLimit(): int
     {
         return $this->maxConnections;
@@ -263,7 +251,6 @@ abstract class ConnectionPool implements Pool
     }
 
     /**
-     *
      * @throws \Error If the connection is not part of this pool.
      */
     protected function push(Link $connection): void
@@ -279,9 +266,6 @@ abstract class ConnectionPool implements Pool
         $this->deferred?->complete($connection);
     }
 
-    /**
-     * {@inheritdoc}
-     */
     public function query(string $sql): Result
     {
         $connection = $this->pop();
@@ -298,9 +282,6 @@ abstract class ConnectionPool implements Pool
         });
     }
 
-    /**
-     * {@inheritdoc}
-     */
     public function execute(string $sql, array $params = []): Result
     {
         $connection = $this->pop();
@@ -318,8 +299,6 @@ abstract class ConnectionPool implements Pool
     }
 
     /**
-     * {@inheritdoc}
-     *
      * Prepared statements returned by this method will stay alive as long as the pool remains open.
      */
     public function prepare(string $sql): Statement
@@ -351,9 +330,6 @@ abstract class ConnectionPool implements Pool
         });
     }
 
-    /**
-     * {@inheritdoc}
-     */
     public function beginTransaction(
         TransactionIsolation $isolation = TransactionIsolationLevel::Committed
     ): Transaction {

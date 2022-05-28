@@ -129,19 +129,16 @@ abstract class StatementPool implements Statement
         return ($this->prepare)($this->sql);
     }
 
-    /** {@inheritdoc} */
     public function isAlive(): bool
     {
         return $this->pool->isAlive();
     }
 
-    /** {@inheritdoc} */
     public function getQuery(): string
     {
         return $this->sql;
     }
 
-    /** {@inheritdoc} */
     public function getLastUsedAt(): int
     {
         return $this->lastUsedAt;
