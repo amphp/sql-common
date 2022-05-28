@@ -7,7 +7,7 @@ use Amp\Sql\Result;
 use Amp\Sql\Statement;
 use Revolt\EventLoop;
 
-abstract class StatementPool implements Statement
+class StatementPool implements Statement
 {
     private readonly Pool $pool;
 
@@ -21,20 +21,6 @@ abstract class StatementPool implements Statement
 
     /** @var \Closure(string):Statement */
     private readonly \Closure $prepare;
-
-    /**
-     * Performs any necessary actions to the statement to prepare it for execution, returning a promise for the same or
-     * a new Statement object if necessary.
-     */
-    abstract protected function prepare(Statement $statement): Statement;
-
-    /**
-     * @param \Closure():void $release
-     */
-    protected function createResult(Result $result, \Closure $release): Result
-    {
-        return new PooledResult($result, $release);
-    }
 
     /**
      * @param Pool $pool Pool used to prepare statements for execution.
@@ -74,8 +60,14 @@ abstract class StatementPool implements Statement
     }
 
     /**
-     * {@inheritdoc}
-     *
+     * @param \Closure():void $release
+     */
+    protected function createResult(Result $result, \Closure $release): Result
+    {
+        return new PooledResult($result, $release);
+    }
+
+    /**
      * Unlike regular statements, as long as the pool is open this statement will not die.
      */
     public function execute(array $params = []): Result
@@ -85,16 +77,13 @@ abstract class StatementPool implements Statement
         $statement = $this->pop();
 
         try {
-            $statement = $this->prepare($statement);
             $result = $statement->execute($params);
         } catch (\Throwable $exception) {
             $this->push($statement);
             throw $exception;
         }
 
-        return $this->createResult($result, function () use ($statement): void {
-            $this->push($statement);
-        });
+        return $this->createResult($result, fn () => $this->push($statement));
     }
 
     /**
