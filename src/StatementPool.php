@@ -102,13 +102,13 @@ class StatementPool implements Statement
             return;
         }
 
-        $this->statements->unshift($statement);
+        $this->statements->enqueue($statement);
     }
 
     protected function pop(): Statement
     {
         while (!$this->statements->isEmpty()) {
-            $statement = $this->statements->pop();
+            $statement = $this->statements->dequeue();
 
             if ($statement->isAlive()) {
                 return $statement;

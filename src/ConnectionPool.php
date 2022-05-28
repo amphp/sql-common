@@ -237,7 +237,7 @@ abstract class ConnectionPool implements Pool
                 }
             }
 
-            $connection = $this->idle->pop();
+            $connection = $this->idle->dequeue();
             \assert($connection instanceof Link);
 
             if ($connection->isAlive()) {
@@ -258,7 +258,7 @@ abstract class ConnectionPool implements Pool
         \assert(isset($this->connections[$connection]), 'Connection is not part of this pool');
 
         if ($connection->isAlive()) {
-            $this->idle->unshift($connection);
+            $this->idle->enqueue($connection);
         } else {
             $this->connections->detach($connection);
         }
@@ -277,9 +277,7 @@ abstract class ConnectionPool implements Pool
             throw $exception;
         }
 
-        return $this->createResult($result, function () use ($connection): void {
-            $this->push($connection);
-        });
+        return $this->createResult($result, fn () => $this->push($connection));
     }
 
     public function execute(string $sql, array $params = []): Result
@@ -293,9 +291,7 @@ abstract class ConnectionPool implements Pool
             throw $exception;
         }
 
-        return $this->createResult($result, function () use ($connection): void {
-            $this->push($connection);
-        });
+        return $this->createResult($result, fn () => $this->push($connection));
     }
 
     /**
@@ -325,9 +321,7 @@ abstract class ConnectionPool implements Pool
             throw $exception;
         }
 
-        return $this->createStatement($statement, function () use ($connection): void {
-            $this->push($connection);
-        });
+        return $this->createStatement($statement, fn () => $this->push($connection));
     }
 
     public function beginTransaction(
@@ -342,8 +336,6 @@ abstract class ConnectionPool implements Pool
             throw $exception;
         }
 
-        return $this->createTransaction($transaction, function () use ($connection): void {
-            $this->push($connection);
-        });
+        return $this->createTransaction($transaction, fn () => $this->push($connection));
     }
 }
