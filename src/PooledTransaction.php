@@ -5,16 +5,14 @@ namespace Amp\Sql\Common;
 use Amp\Sql\Result;
 use Amp\Sql\Statement;
 use Amp\Sql\Transaction;
-use Amp\Sql\TransactionError;
 use Amp\Sql\TransactionIsolation;
-use Revolt\EventLoop;
 
 abstract class PooledTransaction implements Transaction
 {
-    private ?Transaction $transaction;
+    private readonly Transaction $transaction;
 
     /** @var \Closure():void */
-    private \Closure $release;
+    private readonly \Closure $release;
 
     private int $refCount = 1;
 
@@ -52,37 +50,22 @@ abstract class PooledTransaction implements Transaction
             }
         };
 
-        if (!$this->transaction->isActive()) {
-            $this->transaction = null;
-            EventLoop::queue($this->release);
-        }
-    }
+        $this->transaction->onClose($this->release);
 
-    public function __destruct()
-    {
-        EventLoop::queue($this->release);
+        if (!$this->transaction->isActive()) {
+            $this->close();
+        }
     }
 
     public function query(string $sql): Result
     {
-        if (!$this->transaction) {
-            throw new TransactionError("The transaction has been committed or rolled back");
-        }
-
-        /** @psalm-suppress PossiblyNullReference $this->transaction checked for null above. */
         $result = $this->transaction->query($sql);
-
         ++$this->refCount;
         return $this->createResult($result, $this->release);
     }
 
     public function prepare(string $sql): Statement
     {
-        if (!$this->transaction) {
-            throw new TransactionError("The transaction has been committed or rolled back");
-        }
-
-        /** @psalm-suppress PossiblyNullReference $this->transaction checked for null above. */
         $statement = $this->transaction->prepare($sql);
         ++$this->refCount;
         return $this->createStatement($statement, $this->release);
@@ -90,108 +73,66 @@ abstract class PooledTransaction implements Transaction
 
     public function execute(string $sql, array $params = []): Result
     {
-        if (!$this->transaction) {
-            throw new TransactionError("The transaction has been committed or rolled back");
-        }
-
-        /** @psalm-suppress PossiblyNullReference $this->transaction checked for null above. */
         $result = $this->transaction->execute($sql, $params);
-
         ++$this->refCount;
         return $this->createResult($result, $this->release);
     }
 
-    public function isAlive(): bool
+    public function isClosed(): bool
     {
-        return $this->transaction && $this->transaction->isAlive();
+        return $this->transaction->isClosed();
     }
 
     public function getLastUsedAt(): int
     {
-        if (!$this->transaction) {
-            throw new TransactionError("The transaction has been committed or rolled back");
-        }
-
         return $this->transaction->getLastUsedAt();
     }
 
+    /**
+     * Rolls back the transaction if it has not been committed.
+     */
     public function close(): void
     {
-        if (!$this->transaction) {
-            return;
-        }
+        $this->transaction->close();
+    }
 
-        $transaction = $this->transaction;
-        $this->transaction = null;
-
-        $transaction->rollback();
-        ($this->release)();
+    public function onClose(\Closure $onClose): void
+    {
+        $this->transaction->onClose($onClose);
     }
 
     public function getIsolationLevel(): TransactionIsolation
     {
-        if (!$this->transaction) {
-            throw new TransactionError("The transaction has been committed or rolled back");
-        }
-
         return $this->transaction->getIsolationLevel();
     }
 
     public function isActive(): bool
     {
-        return $this->transaction && $this->transaction->isActive();
+        return $this->transaction->isActive();
     }
 
     public function commit(): void
     {
-        if (!$this->transaction) {
-            throw new TransactionError("The transaction has been committed or rolled back");
-        }
-
-        $transaction = $this->transaction;
-        $this->transaction = null;
-
-        $transaction->commit();
-        ($this->release)();
+        $this->transaction->commit();
     }
 
     public function rollback(): void
     {
-        if (!$this->transaction) {
-            throw new TransactionError("The transaction has been committed or rolled back");
-        }
-
-        $transaction = $this->transaction;
-        $this->transaction = null;
-
-        $transaction->rollback();
-        ($this->release)();
+        $this->transaction->rollback();
     }
 
     public function createSavepoint(string $identifier): void
     {
-        if (!$this->transaction) {
-            throw new TransactionError("The transaction has been committed or rolled back");
-        }
-
         $this->transaction->createSavepoint($identifier);
     }
 
     public function rollbackTo(string $identifier): void
     {
-        if (!$this->transaction) {
-            throw new TransactionError("The transaction has been committed or rolled back");
-        }
-
         $this->transaction->rollbackTo($identifier);
     }
 
     public function releaseSavepoint(string $identifier): void
     {
-        if (!$this->transaction) {
-            throw new TransactionError("The transaction has been committed or rolled back");
-        }
-
         $this->transaction->releaseSavepoint($identifier);
     }
 }

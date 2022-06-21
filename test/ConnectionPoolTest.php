@@ -39,8 +39,8 @@ class ConnectionPoolTest extends AsyncTestCase
                 $link->method('getLastUsedAt')
                     ->willReturn($now);
 
-                $link->method('isAlive')
-                    ->willReturn(true);
+                $link->method('isClosed')
+                    ->willReturn(false);
 
                 $link->method('query')
                     ->willReturnCallback(function () {

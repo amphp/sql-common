@@ -29,11 +29,9 @@ abstract class ConnectionPool implements Pool
     /** @var Future<Link>|null */
     private ?Future $future = null;
 
-    private ?DeferredFuture $deferred = null;
+    private ?DeferredFuture $awaitingConnection = null;
 
-    private readonly string $timeoutWatcher;
-
-    private bool $closed = false;
+    private readonly DeferredFuture $onClose;
 
     /**
      * Creates a Statement of the appropriate type using the Statement object returned by the Link object and the
@@ -76,12 +74,13 @@ abstract class ConnectionPool implements Pool
             throw new \Error("Pool must contain at least one connection");
         }
 
-        $this->connections = $connections = new \SplObjectStorage;
-        $this->idle = $idle = new \SplQueue;
+        $this->connections = $connections = new \SplObjectStorage();
+        $this->idle = $idle = new \SplQueue();
+        $this->onClose = new DeferredFuture();
 
         $idleTimeout = &$this->idleTimeout;
 
-        $this->timeoutWatcher = EventLoop::repeat(1, static function () use (&$idleTimeout, $connections, $idle) {
+        $timeoutWatcher = EventLoop::repeat(1, static function () use (&$idleTimeout, $connections, $idle) {
             $now = \time();
             while (!$idle->isEmpty()) {
                 $connection = $idle->bottom();
@@ -99,12 +98,13 @@ abstract class ConnectionPool implements Pool
             }
         });
 
-        EventLoop::unreference($this->timeoutWatcher);
+        EventLoop::unreference($timeoutWatcher);
+        $this->onClose(static fn () => EventLoop::cancel($timeoutWatcher));
     }
 
     public function __destruct()
     {
-        EventLoop::cancel($this->timeoutWatcher);
+        $this->close();
     }
 
     /**
@@ -139,9 +139,14 @@ abstract class ConnectionPool implements Pool
         return $time;
     }
 
-    public function isAlive(): bool
+    public function isClosed(): bool
     {
-        return !$this->closed;
+        return $this->onClose->isComplete();
+    }
+
+    public function onClose(\Closure $onClose): void
+    {
+        $this->onClose->getFuture()->finally($onClose);
     }
 
     /**
@@ -149,20 +154,14 @@ abstract class ConnectionPool implements Pool
      */
     public function close(): void
     {
-        $this->closed = true;
-        foreach ($this->connections as $connection) {
-            $connection->close();
+        if ($this->onClose->isComplete()) {
+            return;
         }
 
-        while (!$this->idle->isEmpty()) {
-            $this->idle->dequeue();
-        }
+        $this->onClose->complete();
 
-        if ($this->deferred instanceof DeferredFuture) {
-            $deferred = $this->deferred;
-            $this->deferred = null;
-            $deferred->error(new SqlException("Connection pool closed"));
-        }
+        $this->awaitingConnection?->error(new SqlException("Connection pool closed"));
+        $this->awaitingConnection = null;
     }
 
     public function extractConnection(): Link
@@ -193,7 +192,7 @@ abstract class ConnectionPool implements Pool
      */
     protected function pop(): Link
     {
-        if ($this->closed) {
+        if ($this->isClosed()) {
             throw new \Error("The pool has been closed");
         }
 
@@ -228,11 +227,11 @@ abstract class ConnectionPool implements Pool
 
                 // All possible connections busy, so wait until one becomes available.
                 try {
-                    $this->deferred = new DeferredFuture;
+                    $this->awaitingConnection = new DeferredFuture;
                     // Connection will be pulled from $this->idle when future is resolved.
-                    ($this->future = $this->deferred->getFuture())->await();
+                    ($this->future = $this->awaitingConnection->getFuture())->await();
                 } finally {
-                    $this->deferred = null;
+                    $this->awaitingConnection = null;
                     $this->future = null;
                 }
             }
@@ -240,12 +239,12 @@ abstract class ConnectionPool implements Pool
             $connection = $this->idle->dequeue();
             \assert($connection instanceof Link);
 
-            if ($connection->isAlive()) {
+            if (!$connection->isClosed()) {
                 return $connection;
             }
 
             $this->connections->detach($connection);
-        } while (!$this->closed);
+        } while (!$this->isClosed());
 
         throw new SqlException("Pool closed before an active connection could be obtained");
     }
@@ -257,13 +256,13 @@ abstract class ConnectionPool implements Pool
     {
         \assert(isset($this->connections[$connection]), 'Connection is not part of this pool');
 
-        if ($connection->isAlive()) {
-            $this->idle->enqueue($connection);
-        } else {
+        if ($connection->isClosed()) {
             $this->connections->detach($connection);
+        } else {
+            $this->idle->enqueue($connection);
         }
 
-        $this->deferred?->complete($connection);
+        $this->awaitingConnection?->complete($connection);
     }
 
     public function query(string $sql): Result
@@ -315,7 +314,6 @@ abstract class ConnectionPool implements Pool
 
         try {
             $statement = $connection->prepare($sql);
-            \assert($statement instanceof Statement);
         } catch (\Throwable $exception) {
             $this->push($connection);
             throw $exception;

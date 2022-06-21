@@ -2,8 +2,10 @@
 
 namespace Amp\Sql\Common;
 
+use Amp\DeferredFuture;
 use Amp\Sql\Pool;
 use Amp\Sql\Result;
+use Amp\Sql\SqlException;
 use Amp\Sql\Statement;
 use Revolt\EventLoop;
 
@@ -17,10 +19,10 @@ class StatementPool implements Statement
 
     private int $lastUsedAt;
 
-    private readonly string $timeoutWatcher;
-
     /** @var \Closure(string):Statement */
     private readonly \Closure $prepare;
+
+    private readonly DeferredFuture $onClose;
 
     /**
      * @param Pool $pool Pool used to prepare statements for execution.
@@ -34,8 +36,9 @@ class StatementPool implements Statement
         $this->pool = $pool;
         $this->prepare = $prepare;
         $this->sql = $sql;
+        $this->onClose = $onClose = new DeferredFuture();
 
-        $this->timeoutWatcher = EventLoop::repeat(1, static function () use ($pool, $statements): void {
+        $timeoutWatcher = EventLoop::repeat(1, static function () use ($pool, $statements): void {
             $now = \time();
             $idleTimeout = ((int) ($pool->getIdleTimeout() / 10)) ?: 1;
 
@@ -51,12 +54,15 @@ class StatementPool implements Statement
             }
         });
 
-        EventLoop::unreference($this->timeoutWatcher);
+        EventLoop::unreference($timeoutWatcher);
+        $this->onClose(static fn () => EventLoop::cancel($timeoutWatcher));
+
+        $this->pool->onClose(static fn () => $onClose->isComplete() || $onClose->complete());
     }
 
     public function __destruct()
     {
-        EventLoop::cancel($this->timeoutWatcher);
+        $this->close();
     }
 
     /**
@@ -72,6 +78,10 @@ class StatementPool implements Statement
      */
     public function execute(array $params = []): Result
     {
+        if ($this->isClosed()) {
+            throw new SqlException('The statement has been closed or the connection pool has been closed');
+        }
+
         $this->lastUsedAt = \time();
 
         $statement = $this->pop();
@@ -109,8 +119,9 @@ class StatementPool implements Statement
     {
         while (!$this->statements->isEmpty()) {
             $statement = $this->statements->dequeue();
+            \assert($statement instanceof Statement);
 
-            if ($statement->isAlive()) {
+            if (!$statement->isClosed()) {
                 return $statement;
             }
         }
@@ -118,17 +129,29 @@ class StatementPool implements Statement
         return ($this->prepare)($this->sql);
     }
 
-    public function isAlive(): bool
+    final public function close(): void
     {
-        return $this->pool->isAlive();
+        if (!$this->onClose->isComplete()) {
+            $this->onClose->complete();
+        }
     }
 
-    public function getQuery(): string
+    final public function isClosed(): bool
+    {
+        return $this->onClose->isComplete();
+    }
+
+    final public function onClose(\Closure $onClose): void
+    {
+        $this->onClose->getFuture()->finally($onClose);
+    }
+
+    final public function getQuery(): string
     {
         return $this->sql;
     }
 
-    public function getLastUsedAt(): int
+    final public function getLastUsedAt(): int
     {
         return $this->lastUsedAt;
     }

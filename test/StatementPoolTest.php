@@ -13,14 +13,14 @@ class StatementPoolTest extends AsyncTestCase
     public function testActiveStatementsRemainAfterTimeout()
     {
         $pool = $this->createMock(Pool::class);
-        $pool->method('isAlive')
-            ->willReturn(true);
+        $pool->method('isClosed')
+            ->willReturn(false);
         $pool->method('getIdleTimeout')
             ->willReturn(60);
 
         $statement = $this->createMock(Statement::class);
-        $statement->method('isAlive')
-            ->willReturn(true);
+        $statement->method('isClosed')
+            ->willReturn(false);
         $statement->method('getQuery')
             ->willReturn('SELECT 1');
         $statement->method('getLastUsedAt')
@@ -30,29 +30,29 @@ class StatementPoolTest extends AsyncTestCase
 
         $statementPool = new StatementPool($pool, 'SELECT 1', $this->createCallback(1, fn () => $statement));
 
-        $this->assertTrue($statementPool->isAlive());
+        $this->assertFalse($statementPool->isClosed());
         $this->assertSame(\time(), $statementPool->getLastUsedAt());
 
         delay(1.5); // Give timeout watcher enough time to execute.
 
         $statementPool->execute();
 
-        $this->assertTrue($statementPool->isAlive());
+        $this->assertFalse($statementPool->isClosed());
         $this->assertSame(\time(), $statementPool->getLastUsedAt());
     }
 
     public function testIdleStatementsRemovedAfterTimeout()
     {
         $pool = $this->createMock(Pool::class);
-        $pool->method('isAlive')
-            ->willReturn(true);
+        $pool->method('isClosed')
+            ->willReturn(false);
         $pool->method('getIdleTimeout')
             ->willReturn(1);
 
         $createStatement = function (): Statement {
             $statement = $this->createMock(Statement::class);
-            $statement->method('isAlive')
-                ->willReturn(true);
+            $statement->method('isClosed')
+                ->willReturn(false);
             $statement->method('getQuery')
                 ->willReturn('SELECT 1');
             $statement->method('getLastUsedAt')
@@ -65,7 +65,7 @@ class StatementPoolTest extends AsyncTestCase
 
         $statementPool = new StatementPool($pool, 'SELECT 1', $this->createCallback(2, $createStatement));
 
-        $this->assertTrue($statementPool->isAlive());
+        $this->assertFalse($statementPool->isClosed());
         $this->assertSame(\time(), $statementPool->getLastUsedAt());
 
         $statementPool->execute();
@@ -74,7 +74,7 @@ class StatementPoolTest extends AsyncTestCase
 
         $statementPool->execute();
 
-        $this->assertTrue($statementPool->isAlive());
+        $this->assertFalse($statementPool->isClosed());
         $this->assertSame(\time(), $statementPool->getLastUsedAt());
     }
 }

@@ -56,9 +56,19 @@ class PooledStatement implements Statement
         return $this->createResult($result, $this->release);
     }
 
-    public function isAlive(): bool
+    public function isClosed(): bool
     {
-        return $this->statement->isAlive();
+        return $this->statement->isClosed();
+    }
+
+    public function close(): void
+    {
+        $this->statement->close();
+    }
+
+    public function onClose(\Closure $onClose): void
+    {
+        $this->statement->onClose($onClose);
     }
 
     public function getQuery(): string
