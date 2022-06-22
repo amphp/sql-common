@@ -158,6 +158,10 @@ abstract class ConnectionPool implements Pool
             return;
         }
 
+        foreach ($this->connections as $connection) {
+            async($connection->close(...))->ignore();
+        }
+
         $this->onClose->complete();
 
         $this->awaitingConnection?->error(new SqlException("Connection pool closed"));
@@ -219,6 +223,11 @@ abstract class ConnectionPool implements Pool
                         }
                     } finally {
                         $this->future = null;
+                    }
+
+                    if ($this->isClosed()) {
+                        $connection->close();
+                        break 2; // Break to throwing exception.
                     }
 
                     $this->connections->attach($connection);
