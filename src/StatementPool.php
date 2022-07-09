@@ -9,17 +9,23 @@ use Amp\Sql\SqlException;
 use Amp\Sql\Statement;
 use Revolt\EventLoop;
 
+/**
+ * @template TResult extends Result
+ * @template TStatement extends Statement
+ * @implements Statement<TResult>
+ */
 class StatementPool implements Statement
 {
     private readonly Pool $pool;
 
+    /** @var \SplQueue<TStatement> */
     private readonly \SplQueue $statements;
 
     private readonly string $sql;
 
     private int $lastUsedAt;
 
-    /** @var \Closure(string):Statement */
+    /** @var \Closure(string):TStatement */
     private readonly \Closure $prepare;
 
     private readonly DeferredFuture $onClose;
@@ -27,7 +33,7 @@ class StatementPool implements Statement
     /**
      * @param Pool $pool Pool used to prepare statements for execution.
      * @param string $sql SQL statement to prepare
-     * @param \Closure(string):Statement $prepare Callable that returns a new prepared statement.
+     * @param \Closure(string):TStatement $prepare Callable that returns a new prepared statement.
      */
     public function __construct(Pool $pool, string $sql, \Closure $prepare)
     {
@@ -66,6 +72,7 @@ class StatementPool implements Statement
     }
 
     /**
+     * @param TResult $result
      * @param \Closure():void $release
      */
     protected function createResult(Result $result, \Closure $release): Result
@@ -75,6 +82,8 @@ class StatementPool implements Statement
 
     /**
      * Unlike regular statements, as long as the pool is open this statement will not die.
+     *
+     * @return TResult
      */
     public function execute(array $params = []): Result
     {
@@ -99,6 +108,8 @@ class StatementPool implements Statement
     /**
      * Only retains statements if less than 10% of the pool is consumed by this statement and the pool has
      * available connections.
+     *
+     * @param TStatement $statement
      */
     protected function push(Statement $statement): void
     {
@@ -115,6 +126,9 @@ class StatementPool implements Statement
         $this->statements->enqueue($statement);
     }
 
+    /**
+     * @return TStatement
+     */
     protected function pop(): Statement
     {
         while (!$this->statements->isEmpty()) {

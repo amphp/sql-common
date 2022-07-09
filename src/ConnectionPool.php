@@ -17,18 +17,30 @@ use Amp\Sql\TransactionIsolationLevel;
 use Revolt\EventLoop;
 use function Amp\async;
 
+/**
+ * @template TConfig extends SqlConfig
+ * @template TLink extends Link
+ * @template TResult extends Result
+ * @template TStatement extends Statement
+ * @template TTransaction extends Transaction
+ *
+ * @implements Pool<TResult, TStatement, TTransaction>
+ */
 abstract class ConnectionPool implements Pool
 {
     public const DEFAULT_MAX_CONNECTIONS = 100;
     public const DEFAULT_IDLE_TIMEOUT = 60;
 
+    /** @var \SplQueue<TLink> */
     private readonly \SplQueue $idle;
 
+    /** @var \SplObjectStorage<TLink> */
     private readonly \SplObjectStorage $connections;
 
-    /** @var Future<Link>|null */
+    /** @var Future<TLink>|null */
     private ?Future $future = null;
 
+    /** @var DeferredFuture<TLink>|null */
     private ?DeferredFuture $awaitingConnection = null;
 
     private readonly DeferredFuture $onClose;
@@ -37,12 +49,18 @@ abstract class ConnectionPool implements Pool
      * Creates a Statement of the appropriate type using the Statement object returned by the Link object and the
      * given release callable.
      *
+     * @param TStatement $statement
      * @param \Closure():void $release
+     *
+     * @return TStatement
      */
     abstract protected function createStatement(Statement $statement, \Closure $release): Statement;
 
     /**
-     * @param \Closure(string):Statement $prepare
+     * @param Pool<TResult, TStatement, TTransaction> $pool
+     * @param \Closure(string):TStatement $prepare
+     *
+     * @return StatementPool<TResult, TStatement>
      */
     abstract protected function createStatementPool(Pool $pool, string $sql, \Closure $prepare): StatementPool;
 
@@ -50,11 +68,16 @@ abstract class ConnectionPool implements Pool
      * Creates a Transaction of the appropriate type using the Transaction object returned by the Link object and the
      * given release callable.
      *
+     * @param TTransaction $transaction
      * @param \Closure():void $release
+     *
+     * @return TTransaction
      */
     abstract protected function createTransaction(Transaction $transaction, \Closure $release): Transaction;
 
     /**
+     * @param TConfig $config
+     * @param SqlConnector<TConfig, TLink> $connector
      * @param positive-int $maxConnections Maximum number of active connections in the pool.
      * @param positive-int $idleTimeout Number of seconds until idle connections are removed from the pool.
      */

@@ -5,11 +5,14 @@ namespace Amp\Sql\Common;
 use Amp\Future;
 use Amp\Sql\Result;
 
+/**
+ * @template TResult extends Result
+ */
 final class CommandResult implements Result, \IteratorAggregate
 {
     /**
      * @param int $affectedRows
-     * @param Future<Result|null> $nextResult
+     * @param Future<TResult|null> $nextResult
      */
     public function __construct(
         private readonly int $affectedRows,
@@ -22,6 +25,9 @@ final class CommandResult implements Result, \IteratorAggregate
         return new \EmptyIterator;
     }
 
+    /**
+     * @return TResult|null
+     */
     public function getNextResult(): ?Result
     {
         return $this->nextResult->await();

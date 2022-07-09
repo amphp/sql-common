@@ -7,6 +7,13 @@ use Amp\Sql\Statement;
 use Amp\Sql\Transaction;
 use Amp\Sql\TransactionIsolation;
 
+/**
+ * @template TResult extends Result
+ * @template TStatement extends Statement
+ * @template TTransaction extends Transaction
+ *
+ * @implements Transaction<TResult, TStatement>
+ */
 abstract class PooledTransaction implements Transaction
 {
     private readonly Transaction $transaction;
@@ -36,7 +43,7 @@ abstract class PooledTransaction implements Transaction
     }
 
     /**
-     * @param Transaction $transaction Transaction object created by pooled connection.
+     * @param TTransaction $transaction Transaction object created by pooled connection.
      * @param \Closure():void $release Callable to be invoked when the transaction completes or is destroyed.
      */
     public function __construct(Transaction $transaction, \Closure $release)

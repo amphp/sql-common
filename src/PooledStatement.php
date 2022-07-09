@@ -6,6 +6,12 @@ use Amp\Sql\Result;
 use Amp\Sql\Statement;
 use Revolt\EventLoop;
 
+/**
+ * @template TResult extends Result
+ * @template TStatement extends Statement
+ *
+ * @implements Statement<TResult>
+ */
 class PooledStatement implements Statement
 {
     private readonly Statement $statement;
@@ -16,7 +22,7 @@ class PooledStatement implements Statement
     private int $refCount = 1;
 
     /**
-     * @param Statement $statement Statement object created by pooled connection.
+     * @param TStatement $statement Statement object created by pooled connection.
      * @param \Closure():void $release Callable to be invoked when the statement and any associated results are
      *     destroyed.
      */
@@ -38,16 +44,22 @@ class PooledStatement implements Statement
     }
 
     /**
-     * Creates a ResultSet of the appropriate type using the ResultSet object returned by the Statement object and
+     * Creates a Result of the appropriate type using the Result object returned by the Statement object and
      * the given release callable.
      *
+     * @param TResult $result
      * @param \Closure():void $release
+     *
+     * @return TResult
      */
     protected function createResult(Result $result, \Closure $release): Result
     {
         return new PooledResult($result, $release);
     }
 
+    /**
+     * @return TResult
+     */
     public function execute(array $params = []): Result
     {
         $result = $this->statement->execute($params);

@@ -7,6 +7,9 @@ use Amp\Sql\Result;
 use Revolt\EventLoop;
 use function Amp\async;
 
+/**
+ * @template TResult extends Result
+ */
 class PooledResult implements Result, \IteratorAggregate
 {
     private readonly Result $result;
@@ -14,7 +17,7 @@ class PooledResult implements Result, \IteratorAggregate
     /** @var null|\Closure():void */
     private ?\Closure $release;
 
-    /** @var Future<Result|null>|null */
+    /** @var Future<TResult|null>|null */
     private ?Future $next = null;
 
     /**
@@ -33,7 +36,10 @@ class PooledResult implements Result, \IteratorAggregate
     }
 
     /**
+     * @param TResult $result
      * @param \Closure():void $release
+     *
+     * @return PooledResult<TResult>
      */
     protected function newInstanceFrom(Result $result, \Closure $release): self
     {
@@ -72,6 +78,9 @@ class PooledResult implements Result, \IteratorAggregate
         return $this->result->getColumnCount();
     }
 
+    /**
+     * @return TResult|null
+     */
     public function getNextResult(): ?Result
     {
         if ($this->next === null) {
