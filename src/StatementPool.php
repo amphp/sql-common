@@ -14,7 +14,7 @@ use Revolt\EventLoop;
  * @template TStatement extends Statement
  * @implements Statement<TResult>
  */
-class StatementPool implements Statement
+abstract class StatementPool implements Statement
 {
     private readonly Pool $pool;
 
@@ -29,6 +29,12 @@ class StatementPool implements Statement
     private readonly \Closure $prepare;
 
     private readonly DeferredFuture $onClose;
+
+    /**
+     * @param TResult $result
+     * @param \Closure():void $release
+     */
+    abstract protected function createResult(Result $result, \Closure $release): Result;
 
     /**
      * @param Pool $pool Pool used to prepare statements for execution.
@@ -69,15 +75,6 @@ class StatementPool implements Statement
     public function __destruct()
     {
         $this->close();
-    }
-
-    /**
-     * @param TResult $result
-     * @param \Closure():void $release
-     */
-    protected function createResult(Result $result, \Closure $release): Result
-    {
-        return new PooledResult($result, $release);
     }
 
     /**

@@ -57,6 +57,15 @@ abstract class ConnectionPool implements Pool
     abstract protected function createStatement(Statement $statement, \Closure $release): Statement;
 
     /**
+     * Creates a Result of the appropriate type using the Result object returned by the Link object and the
+     * given release callable.
+     *
+     * @param TResult $result
+     * @param \Closure():void $release
+     */
+    abstract protected function createResult(Result $result, \Closure $release): Result;
+
+    /**
      * @param Pool<TResult, TStatement, TTransaction> $pool
      * @param \Closure(string):TStatement $prepare
      *
@@ -128,17 +137,6 @@ abstract class ConnectionPool implements Pool
     public function __destruct()
     {
         $this->close();
-    }
-
-    /**
-     * Creates a ResultSet of the appropriate type using the ResultSet object returned by the Link object and the
-     * given release callable.
-     *
-     * @param \Closure():void $release
-     */
-    protected function createResult(Result $result, \Closure $release): Result
-    {
-        return new PooledResult($result, $release);
     }
 
     public function getIdleTimeout(): int

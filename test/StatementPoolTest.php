@@ -28,7 +28,9 @@ class StatementPoolTest extends AsyncTestCase
         $statement->expects($this->once())
             ->method('execute');
 
-        $statementPool = new StatementPool($pool, 'SELECT 1', $this->createCallback(1, fn () => $statement));
+        $statementPool = $this->getMockBuilder(StatementPool::class)
+            ->setConstructorArgs([$pool, 'SELECT 1', $this->createCallback(1, fn () => $statement)])
+            ->getMockForAbstractClass();
 
         $this->assertFalse($statementPool->isClosed());
         $this->assertSame(\time(), $statementPool->getLastUsedAt());
@@ -63,7 +65,9 @@ class StatementPoolTest extends AsyncTestCase
             return $statement;
         };
 
-        $statementPool = new StatementPool($pool, 'SELECT 1', $this->createCallback(2, $createStatement));
+        $statementPool = $this->getMockBuilder(StatementPool::class)
+            ->setConstructorArgs([$pool, 'SELECT 1', $this->createCallback(2, $createStatement)])
+            ->getMockForAbstractClass();
 
         $this->assertFalse($statementPool->isClosed());
         $this->assertSame(\time(), $statementPool->getLastUsedAt());

@@ -4,6 +4,7 @@ namespace Amp\Sql\Common\Test;
 
 use Amp\PHPUnit\AsyncTestCase;
 use Amp\Sql\Common\PooledResult;
+use Amp\Sql\Result;
 use function Amp\delay;
 
 class PooledResultTest extends AsyncTestCase
@@ -28,7 +29,18 @@ class PooledResultTest extends AsyncTestCase
         $firstResult->method('getNextResult')
             ->willReturn($secondResult);
 
-        $result = new PooledResult($firstResult, $release);
+        $result = $this->getMockBuilder(PooledResult::class)
+            ->setConstructorArgs([$firstResult, $release])
+            ->getMockForAbstractClass();
+
+        $result->expects(self::once())
+            ->method('newInstanceFrom')
+            ->willReturnCallback(function (Result $result, \Closure $release): PooledResult {
+                return $this->getMockBuilder(PooledResult::class)
+                    ->setConstructorArgs([$result, $release])
+                    ->getMockForAbstractClass();
+            });
+
         $iterator = $result->getIterator();
 
         $this->assertSame(['column' => 'value'], $iterator->current());

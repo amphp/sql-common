@@ -32,15 +32,13 @@ abstract class PooledTransaction implements Transaction
     abstract protected function createStatement(Statement $statement, \Closure $release): Statement;
 
     /**
-     * Creates a ResultSet of the appropriate type using the ResultSet object returned by the Transaction object and
-     * the given release callable.
+     * Creates a Result of the appropriate type using the Result object returned by the Link object and the
+     * given release callable.
      *
+     * @param TResult $result
      * @param \Closure():void $release
      */
-    protected function createResult(Result $result, \Closure $release): Result
-    {
-        return new PooledResult($result, $release);
-    }
+    abstract protected function createResult(Result $result, \Closure $release): Result;
 
     /**
      * @param TTransaction $transaction Transaction object created by pooled connection.

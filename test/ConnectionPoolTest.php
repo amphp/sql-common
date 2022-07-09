@@ -5,6 +5,7 @@ namespace Amp\Sql\Common\Test;
 use Amp\Future;
 use Amp\PHPUnit\AsyncTestCase;
 use Amp\Sql\Common\ConnectionPool;
+use Amp\Sql\Common\PooledResult;
 use Amp\Sql\Link;
 use Amp\Sql\Result;
 use Amp\Sql\SqlConfig;
@@ -56,7 +57,7 @@ class ConnectionPoolTest extends AsyncTestCase
 
     private function createPool(SqlConnector $connector, int $maxConnections = 100, int $idleTimeout = 10): ConnectionPool
     {
-        return $this->getMockBuilder(ConnectionPool::class)
+        $pool = $this->getMockBuilder(ConnectionPool::class)
             ->setConstructorArgs([
                 $this->createMock(SqlConfig::class),
                 $connector,
@@ -64,6 +65,18 @@ class ConnectionPoolTest extends AsyncTestCase
                 $idleTimeout,
             ])
             ->getMockForAbstractClass();
+
+        $pool->method('createResult')
+            ->willReturnCallback(function (Result $result, \Closure $release): PooledResult {
+                return new class($result, $release) extends PooledResult {
+                    protected function newInstanceFrom(Result $result, \Closure $release): PooledResult
+                    {
+                        return new self($result, $release);
+                    }
+                };
+            });
+
+        return $pool;
     }
 
     public function testIdleConnectionsRemovedAfterTimeout()
@@ -78,7 +91,7 @@ class ConnectionPoolTest extends AsyncTestCase
             $futures[] = async(fn () => $pool->query("SELECT $i"));
         }
 
-        $this->assertCount($count, Future\all($futures));
+        $this->assertCount($count, Future\await($futures));
 
         unset($futures); // Remove references to results so they are destructed.
 

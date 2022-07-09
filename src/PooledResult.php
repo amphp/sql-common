@@ -10,7 +10,7 @@ use function Amp\async;
 /**
  * @template TResult extends Result
  */
-class PooledResult implements Result, \IteratorAggregate
+abstract class PooledResult implements Result, \IteratorAggregate
 {
     private readonly Result $result;
 
@@ -21,7 +21,7 @@ class PooledResult implements Result, \IteratorAggregate
     private ?Future $next = null;
 
     /**
-     * @param Result $result Result object created by pooled connection or statement.
+     * @param TResult $result Result object created by pooled connection or statement.
      * @param \Closure():void $release Callable to be invoked when the result set is destroyed.
      */
     public function __construct(Result $result, \Closure $release)
@@ -41,10 +41,7 @@ class PooledResult implements Result, \IteratorAggregate
      *
      * @return PooledResult<TResult>
      */
-    protected function newInstanceFrom(Result $result, \Closure $release): self
-    {
-        return new self($result, $release);
-    }
+    abstract protected function newInstanceFrom(Result $result, \Closure $release): self;
 
     private function dispose(): void
     {

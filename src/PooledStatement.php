@@ -12,7 +12,7 @@ use Revolt\EventLoop;
  *
  * @implements Statement<TResult>
  */
-class PooledStatement implements Statement
+abstract class PooledStatement implements Statement
 {
     private readonly Statement $statement;
 
@@ -20,6 +20,17 @@ class PooledStatement implements Statement
     private readonly \Closure $release;
 
     private int $refCount = 1;
+
+    /**
+     * Creates a Result of the appropriate type using the Result object returned by the Statement object and the
+     * given release callable.
+     *
+     * @param TResult $result
+     * @param \Closure():void $release
+     *
+     * @return TResult
+     */
+    abstract protected function createResult(Result $result, \Closure $release): Result;
 
     /**
      * @param TStatement $statement Statement object created by pooled connection.
@@ -41,20 +52,6 @@ class PooledStatement implements Statement
     public function __destruct()
     {
         EventLoop::queue($this->release);
-    }
-
-    /**
-     * Creates a Result of the appropriate type using the Result object returned by the Statement object and
-     * the given release callable.
-     *
-     * @param TResult $result
-     * @param \Closure():void $release
-     *
-     * @return TResult
-     */
-    protected function createResult(Result $result, \Closure $release): Result
-    {
-        return new PooledResult($result, $release);
     }
 
     /**
