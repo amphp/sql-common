@@ -39,9 +39,9 @@ abstract class PooledResult implements Result, \IteratorAggregate
      * @param TResult $result
      * @param \Closure():void $release
      *
-     * @return PooledResult<TResult>
+     * @return TResult
      */
-    abstract protected function newInstanceFrom(Result $result, \Closure $release): self;
+    abstract protected function newInstanceFrom(Result $result, \Closure $release): Result;
 
     private function dispose(): void
     {
@@ -60,9 +60,7 @@ abstract class PooledResult implements Result, \IteratorAggregate
             throw $exception;
         }
 
-        if ($this->next === null) {
-            $this->next = $this->fetchNextResult();
-        }
+        $this->next ??= $this->fetchNextResult();
     }
 
     public function getRowCount(): ?int
@@ -80,11 +78,7 @@ abstract class PooledResult implements Result, \IteratorAggregate
      */
     public function getNextResult(): ?Result
     {
-        if ($this->next === null) {
-            $this->next = $this->fetchNextResult();
-        }
-
-        return $this->next->await();
+        return ($this->next ??= $this->fetchNextResult())->await();
     }
 
     private function fetchNextResult(): Future
