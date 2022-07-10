@@ -66,12 +66,11 @@ abstract class ConnectionPool implements Pool
     abstract protected function createResult(Result $result, \Closure $release): Result;
 
     /**
-     * @param Pool<TResult, TStatement, TTransaction> $pool
      * @param \Closure(string):TStatement $prepare
      *
-     * @return StatementPool<TResult, TStatement>
+     * @return TStatement
      */
-    abstract protected function createStatementPool(Pool $pool, string $sql, \Closure $prepare): StatementPool;
+    abstract protected function createStatementPool(string $sql, \Closure $prepare): Statement;
 
     /**
      * Creates a Transaction of the appropriate type using the Transaction object returned by the Link object and the
@@ -337,7 +336,7 @@ abstract class ConnectionPool implements Pool
      */
     public function prepare(string $sql): Statement
     {
-        return $this->createStatementPool($this, $sql, $this->prepareStatement(...));
+        return $this->createStatementPool($sql, $this->prepareStatement(...));
     }
 
     /**
