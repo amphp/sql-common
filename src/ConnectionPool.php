@@ -189,6 +189,11 @@ abstract class ConnectionPool implements Pool
         $this->awaitingConnection = null;
     }
 
+    /**
+     * @return TLink
+     *
+     * @throws SqlException
+     */
     public function extractConnection(): Link
     {
         $connection = $this->pop();
@@ -212,6 +217,8 @@ abstract class ConnectionPool implements Pool
     }
 
     /**
+     * @return TLink
+     *
      * @throws SqlException If creating a new connection fails.
      * @throws \Error If the pool has been closed.
      */
@@ -280,6 +287,8 @@ abstract class ConnectionPool implements Pool
     }
 
     /**
+     * @param TLink $connection
+     *
      * @throws \Error If the connection is not part of this pool.
      */
     protected function push(Link $connection): void
@@ -334,7 +343,7 @@ abstract class ConnectionPool implements Pool
     /**
      * Prepares a new statement on an available connection.
      *
-     *
+     * @return TStatement
      *
      * @throws SqlException
      */

@@ -14,6 +14,7 @@ use Revolt\EventLoop;
  */
 abstract class PooledStatement implements Statement
 {
+    /** @var TStatement */
     private readonly Statement $statement;
 
     /** @var \Closure():void */

@@ -16,6 +16,7 @@ use Amp\Sql\TransactionIsolation;
  */
 abstract class PooledTransaction implements Transaction
 {
+    /** @var TTransaction  */
     private readonly Transaction $transaction;
 
     /** @var \Closure():void */
@@ -27,7 +28,10 @@ abstract class PooledTransaction implements Transaction
      * Creates a Statement of the appropriate type using the Statement object returned by the Transaction object and
      * the given release callable.
      *
+     * @param TStatement $statement
      * @param \Closure():void $release
+     *
+     * @return TStatement
      */
     abstract protected function createStatement(Statement $statement, \Closure $release): Statement;
 
@@ -37,6 +41,8 @@ abstract class PooledTransaction implements Transaction
      *
      * @param TResult $result
      * @param \Closure():void $release
+     *
+     * @return TResult
      */
     abstract protected function createResult(Result $result, \Closure $release): Result;
 
