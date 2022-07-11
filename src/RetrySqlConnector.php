@@ -35,7 +35,7 @@ final class RetrySqlConnector implements SqlConnector
 
         do {
             try {
-                return $this->connector->connect($config);
+                return $this->connector->connect($config, $cancellation);
             } catch (ConnectionException $exception) {
                 $exceptions[] = $exception;
             }
