@@ -7,6 +7,7 @@ use Amp\Sql\Result;
 
 /**
  * @template TResult extends Result
+ * @implements Result<never>
  */
 final class CommandResult implements Result, \IteratorAggregate
 {

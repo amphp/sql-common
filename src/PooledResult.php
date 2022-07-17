@@ -9,6 +9,7 @@ use function Amp\async;
 
 /**
  * @template TResult extends Result
+ * @implements TResult
  */
 abstract class PooledResult implements Result, \IteratorAggregate
 {
