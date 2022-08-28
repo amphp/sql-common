@@ -301,6 +301,7 @@ abstract class ConnectionPool implements Pool
         }
 
         $this->awaitingConnection?->complete($connection);
+        $this->awaitingConnection = null;
     }
 
     public function query(string $sql): Result

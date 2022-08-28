@@ -115,7 +115,7 @@ class ConnectionPoolTest extends AsyncTestCase
 
         $futures = [];
         for ($i = 0; $i < $count; ++$i) {
-            $futures[] = async(fn () => $pool->query("SELECT $i"));
+            $futures[] = async(fn () => \iterator_to_array($pool->query("SELECT $i")));
         }
 
         $expectedRuntime = 0.1 * \ceil($count / $maxConnections);
@@ -123,11 +123,7 @@ class ConnectionPoolTest extends AsyncTestCase
         $this->setMinimumRuntime($expectedRuntime);
         $this->setTimeout($expectedRuntime + 0.1);
 
-        foreach ($futures as $future) {
-            /** @var Result $result */
-            $result = $future->await();
-            \iterator_to_array($result);
-        }
+        Future\await($futures);
 
         $this->assertSame($maxConnections, $pool->getConnectionCount());
     }
