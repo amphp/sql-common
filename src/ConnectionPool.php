@@ -179,7 +179,8 @@ abstract class ConnectionPool implements Pool
         }
 
         foreach ($this->connections as $connection) {
-            async($connection->close(...))->ignore();
+            // Avoid first class callable syntax to avoid psalm crash
+            async(fn () => $connection->close())->ignore();
         }
 
         $this->onClose->complete();
