@@ -1,10 +1,6 @@
-# sql-common
+# amphp/sql-common
 
 This package provides common classes shared by [`amphp/mysql`](https://github.com/amphp/mysql) and [`amphp/postgres`](https://github.com/amphp/postgres).
-
-## Requirements
-
-- PHP 7.0+
 
 ## Versioning
 
