@@ -8,8 +8,8 @@ use Revolt\EventLoop;
 use function Amp\async;
 
 /**
- * @template TResult extends Result
- * @implements TResult
+ * @template TFieldValue
+ * @implements Result<TFieldValue>
  */
 abstract class PooledResult implements Result, \IteratorAggregate
 {
@@ -18,11 +18,11 @@ abstract class PooledResult implements Result, \IteratorAggregate
     /** @var null|\Closure():void */
     private ?\Closure $release;
 
-    /** @var Future<TResult|null>|null */
+    /** @var Future<Result<TFieldValue>|null>|null */
     private ?Future $next = null;
 
     /**
-     * @param TResult $result Result object created by pooled connection or statement.
+     * @param Result<TFieldValue> $result Result object created by pooled connection or statement.
      * @param \Closure():void $release Callable to be invoked when the result set is destroyed.
      */
     public function __construct(Result $result, \Closure $release)
@@ -37,10 +37,10 @@ abstract class PooledResult implements Result, \IteratorAggregate
     }
 
     /**
-     * @param TResult $result
+     * @param Result<TFieldValue> $result
      * @param \Closure():void $release
      *
-     * @return TResult
+     * @return Result<TFieldValue>
      */
     abstract protected function newInstanceFrom(Result $result, \Closure $release): Result;
 
@@ -75,7 +75,7 @@ abstract class PooledResult implements Result, \IteratorAggregate
     }
 
     /**
-     * @return TResult|null
+     * @return Result<TFieldValue>|null
      */
     public function getNextResult(): ?Result
     {

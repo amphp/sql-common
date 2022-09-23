@@ -18,11 +18,11 @@ use Revolt\EventLoop;
 use function Amp\async;
 
 /**
- * @template TConfig extends SqlConfig
- * @template TLink extends Link
- * @template TResult extends Result
- * @template TStatement extends Statement
- * @template TTransaction extends Transaction
+ * @template TConfig of SqlConfig
+ * @template TLink of Link
+ * @template TResult of Result
+ * @template TStatement of Statement
+ * @template TTransaction of Transaction
  *
  * @implements Pool<TResult, TStatement, TTransaction>
  */
@@ -34,7 +34,7 @@ abstract class ConnectionPool implements Pool
     /** @var \SplQueue<TLink> */
     private readonly \SplQueue $idle;
 
-    /** @var \SplObjectStorage<TLink> */
+    /** @var \SplObjectStorage<TLink, null> */
     private readonly \SplObjectStorage $connections;
 
     /** @var Future<TLink>|null */
@@ -180,6 +180,7 @@ abstract class ConnectionPool implements Pool
 
         foreach ($this->connections as $connection) {
             // Avoid first class callable syntax to avoid psalm crash
+            /** @psalm-suppress MissingClosureReturnType */
             async(fn () => $connection->close())->ignore();
         }
 

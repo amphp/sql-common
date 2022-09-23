@@ -6,7 +6,7 @@ use Amp\Future;
 use Amp\Sql\Result;
 
 /**
- * @template TResult extends Result
+ * @template TResult of Result
  * @implements Result<never>
  */
 final class CommandResult implements Result, \IteratorAggregate

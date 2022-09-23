@@ -8,9 +8,9 @@ use Amp\Sql\Transaction;
 use Amp\Sql\TransactionIsolation;
 
 /**
- * @template TResult extends Result
- * @template TStatement extends Statement
- * @template TTransaction extends Transaction
+ * @template TResult of Result
+ * @template TStatement of Statement
+ * @template TTransaction of Transaction
  *
  * @implements Transaction<TResult, TStatement>
  */

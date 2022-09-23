@@ -10,8 +10,8 @@ use Amp\Sql\SqlConfig;
 use Amp\Sql\SqlConnector;
 
 /**
- * @template TConfig extends SqlConfig
- * @template TLink extends Link
+ * @template TConfig of SqlConfig
+ * @template TLink of Link
  * @implements SqlConnector<TConfig, TLink>
  */
 final class RetrySqlConnector implements SqlConnector
