@@ -64,6 +64,11 @@ abstract class PooledResult implements Result, \IteratorAggregate
         $this->next ??= $this->fetchNextResult();
     }
 
+    public function fetchRow(): ?array
+    {
+        return $this->result->fetchRow();
+    }
+
     public function getRowCount(): ?int
     {
         return $this->result->getRowCount();

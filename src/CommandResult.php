@@ -27,6 +27,14 @@ final class CommandResult implements Result, \IteratorAggregate
     }
 
     /**
+     * Always returns null for command results.
+     */
+    public function fetchRow(): ?array
+    {
+        return null;
+    }
+
+    /**
      * @return TResult|null
      */
     public function getNextResult(): ?Result
