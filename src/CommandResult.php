@@ -6,9 +6,7 @@ use Amp\Future;
 use Amp\Sql\Result;
 
 /**
- * @template TFieldValue
- * @template TResult of Result<TFieldValue>
- * @implements Result<TFieldValue>
+ * @template TResult of Result
  * @implements \IteratorAggregate<int, never>
  */
 final class CommandResult implements Result, \IteratorAggregate
@@ -35,6 +33,9 @@ final class CommandResult implements Result, \IteratorAggregate
         return null;
     }
 
+    /**
+     * @return TResult|null
+     */
     public function getNextResult(): ?Result
     {
         return $this->nextResult->await();
