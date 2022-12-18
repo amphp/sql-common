@@ -11,7 +11,7 @@ use Revolt\EventLoop;
 
 /**
  * @template TResult of Result
- * @template TStatement of Statement
+ * @template TStatement of Statement<TResult>
  * @implements Statement<TResult>
  */
 abstract class StatementPool implements Statement
@@ -33,6 +33,8 @@ abstract class StatementPool implements Statement
     /**
      * @param TResult $result
      * @param \Closure():void $release
+     *
+     * @return TResult
      */
     abstract protected function createResult(Result $result, \Closure $release): Result;
 

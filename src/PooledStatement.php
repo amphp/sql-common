@@ -7,8 +7,9 @@ use Amp\Sql\Statement;
 use Revolt\EventLoop;
 
 /**
- * @template TResult of Result
- * @template TStatement of Statement
+ * @template TFieldValue
+ * @template TResult of Result<TFieldValue>
+ * @template TStatement of Statement<TResult>
  *
  * @implements Statement<TResult>
  */

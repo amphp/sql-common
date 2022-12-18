@@ -18,11 +18,12 @@ use Revolt\EventLoop;
 use function Amp\async;
 
 /**
+ * @template TFieldValue
  * @template TConfig of SqlConfig
- * @template TLink of Link
- * @template TResult of Result
- * @template TStatement of Statement
- * @template TTransaction of Transaction
+ * @template TResult of Result<TFieldValue>
+ * @template TStatement of Statement<TResult>
+ * @template TTransaction of Transaction<TResult, TStatement>
+ * @template TLink of Link<TResult, TStatement, TTransaction>
  *
  * @implements Pool<TResult, TStatement, TTransaction>
  */
@@ -62,6 +63,7 @@ abstract class ConnectionPool implements Pool
      *
      * @param TResult $result
      * @param \Closure():void $release
+     * @return TResult
      */
     abstract protected function createResult(Result $result, \Closure $release): Result;
 

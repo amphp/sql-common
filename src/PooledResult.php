@@ -8,8 +8,8 @@ use Revolt\EventLoop;
 use function Amp\async;
 
 /**
- * @template TResult of Result
- * @implements TResult
+ * @template TFieldValue
+ * @template TResult of Result<TFieldValue>
  */
 abstract class PooledResult implements Result, \IteratorAggregate
 {
@@ -90,6 +90,7 @@ abstract class PooledResult implements Result, \IteratorAggregate
     private function fetchNextResult(): Future
     {
         return async(function (): ?Result {
+            /** @var TResult|null $result */
             $result = $this->result->getNextResult();
 
             if ($result === null || $this->release === null) {
