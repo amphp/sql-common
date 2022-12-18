@@ -18,9 +18,8 @@ use Revolt\EventLoop;
 use function Amp\async;
 
 /**
- * @template TFieldValue
  * @template TConfig of SqlConfig
- * @template TResult of Result<TFieldValue>
+ * @template TResult of Result
  * @template TStatement of Statement<TResult>
  * @template TTransaction of Transaction<TResult, TStatement>
  * @template TLink of Link<TResult, TStatement, TTransaction>

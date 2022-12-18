@@ -8,8 +8,7 @@ use Revolt\EventLoop;
 use function Amp\async;
 
 /**
- * @template TFieldValue
- * @template TResult of Result<TFieldValue>
+ * @template TResult of Result
  */
 abstract class PooledResult implements Result, \IteratorAggregate
 {

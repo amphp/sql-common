@@ -8,8 +8,7 @@ use Amp\Sql\Transaction;
 use Amp\Sql\TransactionIsolation;
 
 /**
- * @template TFieldValue
- * @template TResult of Result<TFieldValue>
+ * @template TResult of Result
  * @template TStatement of Statement<TResult>
  * @template TTransaction of Transaction<TResult, TStatement>
  *
