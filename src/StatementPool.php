@@ -7,11 +7,13 @@ use Amp\Sql\Pool;
 use Amp\Sql\Result;
 use Amp\Sql\SqlException;
 use Amp\Sql\Statement;
+use Amp\Sql\Transaction;
 use Revolt\EventLoop;
 
 /**
  * @template TResult of Result
  * @template TStatement of Statement<TResult>
+ * @template TTransaction of Transaction<TResult, TStatement>
  * @implements Statement<TResult>
  */
 abstract class StatementPool implements Statement
@@ -39,7 +41,7 @@ abstract class StatementPool implements Statement
     abstract protected function createResult(Result $result, \Closure $release): Result;
 
     /**
-     * @param Pool $pool Pool used to prepare statements for execution.
+     * @param Pool<TResult, TStatement, TTransaction> $pool Pool used to prepare statements for execution.
      * @param string $sql SQL statement to prepare
      * @param \Closure(string):TStatement $prepare Callable that returns a new prepared statement.
      */
