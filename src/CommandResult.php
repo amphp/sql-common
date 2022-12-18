@@ -1,4 +1,4 @@
-<?php
+<?php declare(strict_types=1);
 
 namespace Amp\Sql\Common;
 
@@ -12,7 +12,6 @@ use Amp\Sql\Result;
 final class CommandResult implements Result, \IteratorAggregate
 {
     /**
-     * @param int $affectedRows
      * @param Future<TResult|null> $nextResult
      */
     public function __construct(
