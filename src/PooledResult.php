@@ -8,25 +8,24 @@ use Revolt\EventLoop;
 use function Amp\async;
 
 /**
- * @template TResult of Result
+ * @template TFieldValue
+ * @implements Result<TFieldValue>
+ * @implements \IteratorAggregate<int, array<string, TFieldValue>>
  */
 abstract class PooledResult implements Result, \IteratorAggregate
 {
-    private readonly Result $result;
-
     /** @var null|\Closure():void */
     private ?\Closure $release;
 
-    /** @var Future<TResult|null>|null */
+    /** @var Future<Result<TFieldValue>|null>|null */
     private ?Future $next = null;
 
     /**
-     * @param TResult $result Result object created by pooled connection or statement.
+     * @param Result<TFieldValue> $result Result object created by pooled connection or statement.
      * @param \Closure():void $release Callable to be invoked when the result set is destroyed.
      */
-    public function __construct(Result $result, \Closure $release)
+    public function __construct(private readonly Result $result, \Closure $release)
     {
-        $this->result = $result;
         $this->release = $release;
     }
 
@@ -36,10 +35,10 @@ abstract class PooledResult implements Result, \IteratorAggregate
     }
 
     /**
-     * @param TResult $result
+     * @param Result<TFieldValue> $result
      * @param \Closure():void $release
      *
-     * @return TResult
+     * @return Result<TFieldValue>
      */
     abstract protected function newInstanceFrom(Result $result, \Closure $release): Result;
 
@@ -51,6 +50,9 @@ abstract class PooledResult implements Result, \IteratorAggregate
         }
     }
 
+    /**
+     * @psalm-suppress InvalidReturnType
+     */
     public function getIterator(): \Traversable
     {
         try {
@@ -58,9 +60,9 @@ abstract class PooledResult implements Result, \IteratorAggregate
         } catch (\Throwable $exception) {
             $this->dispose();
             throw $exception;
+        } finally {
+            $this->next ??= $this->fetchNextResult();
         }
-
-        $this->next ??= $this->fetchNextResult();
     }
 
     public function fetchRow(): ?array
@@ -79,7 +81,7 @@ abstract class PooledResult implements Result, \IteratorAggregate
     }
 
     /**
-     * @return TResult|null
+     * @return Result<TFieldValue>|null
      */
     public function getNextResult(): ?Result
     {
@@ -89,7 +91,7 @@ abstract class PooledResult implements Result, \IteratorAggregate
     private function fetchNextResult(): Future
     {
         return async(function (): ?Result {
-            /** @var TResult|null $result */
+            /** @var Result<TFieldValue>|null $result */
             $result = $this->result->getNextResult();
 
             if ($result === null || $this->release === null) {

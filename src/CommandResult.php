@@ -6,7 +6,9 @@ use Amp\Future;
 use Amp\Sql\Result;
 
 /**
+ * @template TFieldValue
  * @template TResult of Result
+ * @implements Result<TFieldValue>
  * @implements \IteratorAggregate<int, never>
  */
 final class CommandResult implements Result, \IteratorAggregate

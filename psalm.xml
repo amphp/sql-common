@@ -19,5 +19,11 @@
                 <directory name="src"/>
             </errorLevel>
         </RedundantConditionGivenDocblockType>
+
+        <DocblockTypeContradiction>
+            <errorLevel type="suppress">
+                <directory name="src"/>
+            </errorLevel>
+        </DocblockTypeContradiction>
     </issueHandlers>
 </psalm>
