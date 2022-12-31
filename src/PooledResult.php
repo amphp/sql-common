@@ -9,6 +9,7 @@ use function Amp\async;
 
 /**
  * @template TFieldValue
+ * @template TResult of Result
  * @implements Result<TFieldValue>
  * @implements \IteratorAggregate<int, array<string, TFieldValue>>
  */
@@ -17,11 +18,11 @@ abstract class PooledResult implements Result, \IteratorAggregate
     /** @var null|\Closure():void */
     private ?\Closure $release;
 
-    /** @var Future<Result<TFieldValue>|null>|null */
+    /** @var Future<TResult|null>|null */
     private ?Future $next = null;
 
     /**
-     * @param Result<TFieldValue> $result Result object created by pooled connection or statement.
+     * @param TResult $result Result object created by pooled connection or statement.
      * @param \Closure():void $release Callable to be invoked when the result set is destroyed.
      */
     public function __construct(private readonly Result $result, \Closure $release)
@@ -35,10 +36,10 @@ abstract class PooledResult implements Result, \IteratorAggregate
     }
 
     /**
-     * @param Result<TFieldValue> $result
+     * @param TResult $result
      * @param \Closure():void $release
      *
-     * @return Result<TFieldValue>
+     * @return TResult
      */
     abstract protected function newInstanceFrom(Result $result, \Closure $release): Result;
 
@@ -50,9 +51,6 @@ abstract class PooledResult implements Result, \IteratorAggregate
         }
     }
 
-    /**
-     * @psalm-suppress InvalidReturnType
-     */
     public function getIterator(): \Traversable
     {
         try {
@@ -81,7 +79,7 @@ abstract class PooledResult implements Result, \IteratorAggregate
     }
 
     /**
-     * @return Result<TFieldValue>|null
+     * @return TResult|null
      */
     public function getNextResult(): ?Result
     {
@@ -91,7 +89,7 @@ abstract class PooledResult implements Result, \IteratorAggregate
     private function fetchNextResult(): Future
     {
         return async(function (): ?Result {
-            /** @var Result<TFieldValue>|null $result */
+            /** @var TResult|null $result */
             $result = $this->result->getNextResult();
 
             if ($result === null || $this->release === null) {
