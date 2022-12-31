@@ -28,7 +28,7 @@ final class CommandResult implements Result, \IteratorAggregate
     }
 
     /**
-     * Always returns null for command results.
+     * @return null Always returns null for command results.
      */
     public function fetchRow(): ?array
     {
@@ -52,7 +52,7 @@ final class CommandResult implements Result, \IteratorAggregate
     }
 
     /**
-     * @return int|null Always returns null for command results.
+     * @return null Always returns null for command results.
      */
     public function getColumnCount(): ?int
     {
