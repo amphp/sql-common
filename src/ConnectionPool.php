@@ -322,7 +322,9 @@ abstract class ConnectionPool implements Pool
         }
 
         if ($this->deferred instanceof Deferred) {
-            $this->deferred->resolve($connection);
+            $deferred = $this->deferred;
+            $this->deferred = null;
+            $deferred->resolve($connection);
         }
     }
 
