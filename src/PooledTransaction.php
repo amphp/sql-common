@@ -5,46 +5,21 @@ namespace Amp\Sql\Common;
 use Amp\Sql\Result;
 use Amp\Sql\Statement;
 use Amp\Sql\Transaction;
-use Amp\Sql\TransactionIsolation;
 
 /**
  * @template TResult of Result
  * @template TStatement of Statement<TResult>
  * @template TTransaction of Transaction<TResult, TStatement>
  *
+ * @extends TransactionDelegate<TResult, TStatement, TTransaction>
  * @implements Transaction<TResult, TStatement>
  */
-abstract class PooledTransaction implements Transaction
+abstract class PooledTransaction extends TransactionDelegate implements Transaction
 {
-    /** @var TTransaction  */
-    private readonly Transaction $transaction;
-
     /** @var \Closure():void */
     private readonly \Closure $release;
 
     private int $refCount = 1;
-
-    /**
-     * Creates a Statement of the appropriate type using the Statement object returned by the Transaction object and
-     * the given release callable.
-     *
-     * @param TStatement $statement
-     * @param \Closure():void $release
-     *
-     * @return TStatement
-     */
-    abstract protected function createStatement(Statement $statement, \Closure $release): Statement;
-
-    /**
-     * Creates a Result of the appropriate type using the Result object returned by the Link object and the
-     * given release callable.
-     *
-     * @param TResult $result
-     * @param \Closure():void $release
-     *
-     * @return TResult
-     */
-    abstract protected function createResult(Result $result, \Closure $release): Result;
 
     /**
      * @param TTransaction $transaction Transaction object created by pooled connection.
@@ -52,7 +27,7 @@ abstract class PooledTransaction implements Transaction
      */
     public function __construct(Transaction $transaction, \Closure $release)
     {
-        $this->transaction = $transaction;
+        parent::__construct($transaction);
 
         $refCount = &$this->refCount;
         $this->release = static function () use (&$refCount, $release): void {
@@ -94,11 +69,6 @@ abstract class PooledTransaction implements Transaction
         return $this->transaction->isClosed();
     }
 
-    public function getLastUsedAt(): int
-    {
-        return $this->transaction->getLastUsedAt();
-    }
-
     /**
      * Rolls back the transaction if it has not been committed.
      */
@@ -110,11 +80,6 @@ abstract class PooledTransaction implements Transaction
     public function onClose(\Closure $onClose): void
     {
         $this->transaction->onClose($onClose);
-    }
-
-    public function getIsolationLevel(): TransactionIsolation
-    {
-        return $this->transaction->getIsolationLevel();
     }
 
     public function isActive(): bool
