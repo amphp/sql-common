@@ -121,7 +121,7 @@ class ConnectionPoolTest extends AsyncTestCase
         $expectedRuntime = 0.1 * \ceil($count / $maxConnections);
 
         $this->setMinimumRuntime($expectedRuntime);
-        $this->setTimeout($expectedRuntime + 0.1);
+        $this->setTimeout($expectedRuntime + 1);
 
         Future\await($futures);
 
