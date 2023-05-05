@@ -11,7 +11,7 @@ use Amp\Sql\Result;
  * @implements Result<TFieldValue>
  * @implements \IteratorAggregate<int, never>
  */
-final class CommandResult implements Result, \IteratorAggregate
+abstract class CommandResult implements Result, \IteratorAggregate
 {
     /**
      * @param Future<TResult|null> $nextResult
@@ -22,7 +22,7 @@ final class CommandResult implements Result, \IteratorAggregate
     ) {
     }
 
-    public function getIterator(): \Traversable
+    final public function getIterator(): \Traversable
     {
         return new \EmptyIterator;
     }
@@ -30,7 +30,7 @@ final class CommandResult implements Result, \IteratorAggregate
     /**
      * @return null Always returns null for command results.
      */
-    public function fetchRow(): ?array
+    final public function fetchRow(): ?array
     {
         return null;
     }
@@ -46,7 +46,7 @@ final class CommandResult implements Result, \IteratorAggregate
     /**
      * @return int Returns the number of rows affected by the command.
      */
-    public function getRowCount(): int
+    final public function getRowCount(): int
     {
         return $this->affectedRows;
     }
@@ -54,7 +54,7 @@ final class CommandResult implements Result, \IteratorAggregate
     /**
      * @return null Always returns null for command results.
      */
-    public function getColumnCount(): ?int
+    final public function getColumnCount(): ?int
     {
         return null;
     }

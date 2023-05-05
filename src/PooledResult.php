@@ -28,6 +28,10 @@ abstract class PooledResult implements Result, \IteratorAggregate
     public function __construct(private readonly Result $result, \Closure $release)
     {
         $this->release = $release;
+
+        if ($this->result instanceof CommandResult) {
+            $this->next = $this->fetchNextResult();
+        }
     }
 
     public function __destruct()
