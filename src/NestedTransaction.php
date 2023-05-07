@@ -31,6 +31,7 @@ abstract class NestedTransaction extends TransactionDelegate implements Transact
 
     /**
      * @param TTransaction $transaction
+     * @param \Closure():void $release
      * @param non-empty-string $identifier
      */
     public function __construct(
@@ -73,6 +74,10 @@ abstract class NestedTransaction extends TransactionDelegate implements Transact
         $transaction = $this->transaction;
         $identifier = $this->identifier;
         EventLoop::queue(function () use ($transaction, $identifier): void {
+            if (!$transaction->isActive()) {
+                return;
+            }
+
             try {
                 $transaction->releaseSavepoint($identifier);
             } catch (SqlException) {
@@ -92,6 +97,7 @@ abstract class NestedTransaction extends TransactionDelegate implements Transact
 
     public function query(string $sql): Result
     {
+        $this->assertActive();
         $result = $this->transaction->query($sql);
         ++$this->refCount;
         return $this->createResult($result, $this->release);
@@ -99,6 +105,7 @@ abstract class NestedTransaction extends TransactionDelegate implements Transact
 
     public function prepare(string $sql): Statement
     {
+        $this->assertActive();
         $statement = $this->transaction->prepare($sql);
         ++$this->refCount;
         return $this->createStatement($statement, $this->release);
@@ -106,6 +113,7 @@ abstract class NestedTransaction extends TransactionDelegate implements Transact
 
     public function execute(string $sql, array $params = []): Result
     {
+        $this->assertActive();
         $result = $this->transaction->execute($sql, $params);
         ++$this->refCount;
         return $this->createResult($result, $this->release);
@@ -135,10 +143,7 @@ abstract class NestedTransaction extends TransactionDelegate implements Transact
 
     public function commit(): void
     {
-        if (!$this->isActive || !$this->transaction->isActive()) {
-            throw new TransactionError("The transaction has been committed or rolled back");
-        }
-
+        $this->assertActive();
         $this->isActive = false;
 
         try {
@@ -150,10 +155,7 @@ abstract class NestedTransaction extends TransactionDelegate implements Transact
 
     public function rollback(): void
     {
-        if (!$this->isActive || !$this->transaction->isActive()) {
-            throw new TransactionError("The transaction has been committed or rolled back");
-        }
-
+        $this->assertActive();
         $this->isActive = false;
 
         try {
@@ -165,16 +167,26 @@ abstract class NestedTransaction extends TransactionDelegate implements Transact
 
     public function createSavepoint(string $identifier): void
     {
+        $this->assertActive();
         $this->transaction->createSavepoint($this->makeNestedIdentifier($identifier));
     }
 
     public function rollbackTo(string $identifier): void
     {
+        $this->assertActive();
         $this->transaction->rollbackTo($this->makeNestedIdentifier($identifier));
     }
 
     public function releaseSavepoint(string $identifier): void
     {
+        $this->assertActive();
         $this->transaction->releaseSavepoint($this->makeNestedIdentifier($identifier));
+    }
+
+    private function assertActive(): void
+    {
+        if (!$this->isActive || !$this->transaction->isActive()) {
+            throw new TransactionError("The transaction has been committed or rolled back");
+        }
     }
 }
