@@ -340,6 +340,7 @@ abstract class ConnectionPool implements Pool
      */
     public function prepare(string $sql): Statement
     {
+        /** @psalm-suppress InvalidArgument Psalm is not properly detecting the templated return type. */
         return $this->createStatementPool($sql, $this->prepareStatement(...));
     }
 
