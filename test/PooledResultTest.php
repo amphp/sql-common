@@ -60,7 +60,9 @@ class PooledResultTest extends AsyncTestCase
         $iterator->next();
         $this->assertFalse($iterator->valid());
 
-        delay(0); // Tick event loop to resolve promise fetching next row.
+        $result->getNextResult();
+
+        delay(0); // Tick event loop to dispose of result set.
 
         $this->assertTrue($invoked); // No next result set, so release callback invoked.
     }
