@@ -62,8 +62,6 @@ abstract class PooledResult implements Result, \IteratorAggregate
         } catch (\Throwable $exception) {
             $this->dispose();
             throw $exception;
-        } finally {
-            $this->next ??= $this->fetchNextResult();
         }
     }
 
