@@ -25,5 +25,11 @@
                 <directory name="src"/>
             </errorLevel>
         </DocblockTypeContradiction>
+
+        <UnsupportedPropertyReferenceUsage>
+            <errorLevel type="suppress">
+                <directory name="src"/>
+            </errorLevel>
+        </UnsupportedPropertyReferenceUsage>
     </issueHandlers>
 </psalm>
