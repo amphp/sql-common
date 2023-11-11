@@ -4,8 +4,8 @@ namespace Amp\Sql\Common\Test;
 
 use Amp\PHPUnit\AsyncTestCase;
 use Amp\Sql\Common\RetrySqlConnector;
+use Amp\Sql\Connection;
 use Amp\Sql\ConnectionException;
-use Amp\Sql\Link;
 use Amp\Sql\SqlConfig;
 use Amp\Sql\SqlConnector;
 
@@ -16,7 +16,7 @@ class RetrySqlConnectorTest extends AsyncTestCase
         $connector = $this->createMock(SqlConnector::class);
         $connector->expects($this->once())
             ->method('connect')
-            ->willReturn($this->createMock(Link::class));
+            ->willReturn($this->createMock(Connection::class));
 
         $retry = new RetrySqlConnector($connector);
 
@@ -26,7 +26,7 @@ class RetrySqlConnectorTest extends AsyncTestCase
 
         $connection = $retry->connect($config);
 
-        $this->assertInstanceOf(Link::class, $connection);
+        $this->assertInstanceOf(Connection::class, $connection);
     }
 
     public function testFirstTryFailConnect()
@@ -34,7 +34,7 @@ class RetrySqlConnectorTest extends AsyncTestCase
         $connector = $this->createMock(SqlConnector::class);
         $connector->expects($this->exactly(2))
             ->method('connect')
-            ->willReturnCallback(function (): Link {
+            ->willReturnCallback(function (): Connection {
                 static $initial = true;
 
                 if ($initial) {
@@ -42,7 +42,7 @@ class RetrySqlConnectorTest extends AsyncTestCase
                     throw new ConnectionException;
                 }
 
-                return $this->createMock(Link::class);
+                return $this->createMock(Connection::class);
             });
 
         $retry = new RetrySqlConnector($connector);
@@ -53,7 +53,7 @@ class RetrySqlConnectorTest extends AsyncTestCase
 
         $connection = $retry->connect($config);
 
-        $this->assertInstanceOf(Link::class, $connection);
+        $this->assertInstanceOf(Connection::class, $connection);
     }
 
     public function testFailingConnect()

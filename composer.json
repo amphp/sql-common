@@ -13,7 +13,7 @@
     "require": {
         "php": ">=8.1",
         "amphp/amp": "^3",
-        "amphp/sql": "^2"
+        "amphp/sql": "dev-refactor-transactions as 2.0"
     },
     "require-dev": {
         "amphp/php-cs-fixer-config": "^2",

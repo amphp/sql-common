@@ -6,7 +6,7 @@ use Amp\Future;
 use Amp\PHPUnit\AsyncTestCase;
 use Amp\Sql\Common\ConnectionPool;
 use Amp\Sql\Common\PooledResult;
-use Amp\Sql\Link;
+use Amp\Sql\Connection;
 use Amp\Sql\Result;
 use Amp\Sql\SqlConfig;
 use Amp\Sql\SqlConnector;
@@ -35,21 +35,21 @@ class ConnectionPoolTest extends AsyncTestCase
 
         $connector = $this->createMock(SqlConnector::class);
         $connector->method('connect')
-            ->willReturnCallback(function () use ($now): Link {
-                $link = $this->createMock(Link::class);
-                $link->method('getLastUsedAt')
+            ->willReturnCallback(function () use ($now): Connection {
+                $connection = $this->createMock(Connection::class);
+                $connection->method('getLastUsedAt')
                     ->willReturn($now);
 
-                $link->method('isClosed')
+                $connection->method('isClosed')
                     ->willReturn(false);
 
-                $link->method('query')
+                $connection->method('query')
                     ->willReturnCallback(function () {
                         delay(0.1);
                         return $this->createMock(Result::class);
                     });
 
-                return $link;
+                return $connection;
             });
 
         return $connector;

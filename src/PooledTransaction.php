@@ -5,16 +5,16 @@ namespace Amp\Sql\Common;
 use Amp\Sql\Result;
 use Amp\Sql\Statement;
 use Amp\Sql\Transaction;
+use Amp\Sql\TransactionIsolation;
 
 /**
  * @template TResult of Result
- * @template TStatement of Statement<TResult>
- * @template TTransaction of Transaction<TResult, TStatement>
+ * @template TStatement of Statement
+ * @template TTransaction of Transaction
  *
- * @extends TransactionDelegate<TResult, TStatement, TTransaction>
- * @implements Transaction<TResult, TStatement>
+ * @implements Transaction<TResult, TStatement, TTransaction>
  */
-abstract class PooledTransaction extends TransactionDelegate implements Transaction
+abstract class PooledTransaction implements Transaction
 {
     /** @var \Closure():void */
     private readonly \Closure $release;
@@ -22,13 +22,41 @@ abstract class PooledTransaction extends TransactionDelegate implements Transact
     private int $refCount = 1;
 
     /**
+     * Creates a Statement of the appropriate type using the Statement object returned by the Transaction object and
+     * the given release callable.
+     *
+     * @param TStatement $statement
+     * @param \Closure():void $release
+     *
+     * @return TStatement
+     */
+    abstract protected function createStatement(Statement $statement, \Closure $release): Statement;
+
+    /**
+     * Creates a Result of the appropriate type using the Result object returned by the Link object and the
+     * given release callable.
+     *
+     * @param TResult $result
+     * @param \Closure():void $release
+     *
+     * @return TResult
+     */
+    abstract protected function createResult(Result $result, \Closure $release): Result;
+
+    /**
+     * @param TTransaction $transaction
+     * @param \Closure():void $release
+     *
+     * @return TTransaction
+     */
+    abstract protected function createTransaction(Transaction $transaction, \Closure $release): Transaction;
+
+    /**
      * @param TTransaction $transaction Transaction object created by pooled connection.
      * @param \Closure():void $release Callable to be invoked when the transaction completes or is destroyed.
      */
-    public function __construct(Transaction $transaction, \Closure $release)
+    public function __construct(private readonly Transaction $transaction, \Closure $release)
     {
-        parent::__construct($transaction);
-
         $refCount = &$this->refCount;
         $this->release = static function () use (&$refCount, $release): void {
             if (--$refCount === 0) {
@@ -64,6 +92,13 @@ abstract class PooledTransaction extends TransactionDelegate implements Transact
         return $this->createResult($result, $this->release);
     }
 
+    public function beginTransaction(): Transaction
+    {
+        $transaction = $this->transaction->beginTransaction();
+        ++$this->refCount;
+        return $this->createTransaction($transaction, $this->release);
+    }
+
     public function isClosed(): bool
     {
         return $this->transaction->isClosed();
@@ -97,18 +132,13 @@ abstract class PooledTransaction extends TransactionDelegate implements Transact
         $this->transaction->rollback();
     }
 
-    public function createSavepoint(string $identifier): void
+    public function getIsolationLevel(): TransactionIsolation
     {
-        $this->transaction->createSavepoint($identifier);
+        return $this->transaction->getIsolationLevel();
     }
 
-    public function rollbackTo(string $identifier): void
+    public function getLastUsedAt(): int
     {
-        $this->transaction->rollbackTo($identifier);
-    }
-
-    public function releaseSavepoint(string $identifier): void
-    {
-        $this->transaction->releaseSavepoint($identifier);
+        return $this->transaction->getLastUsedAt();
     }
 }

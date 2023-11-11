@@ -4,20 +4,20 @@ namespace Amp\Sql\Common;
 
 use Amp\Cancellation;
 use Amp\CompositeException;
+use Amp\Sql\Connection;
 use Amp\Sql\ConnectionException;
-use Amp\Sql\Link;
 use Amp\Sql\SqlConfig;
 use Amp\Sql\SqlConnector;
 
 /**
  * @template TConfig of SqlConfig
- * @template TLink of Link
- * @implements SqlConnector<TConfig, TLink>
+ * @template TConnection of Connection
+ * @implements SqlConnector<TConfig, TConnection>
  */
 final class RetrySqlConnector implements SqlConnector
 {
     /**
-     * @param SqlConnector<TConfig, TLink> $connector
+     * @param SqlConnector<TConfig, TConnection> $connector
      */
     public function __construct(
         private readonly SqlConnector $connector,
@@ -28,7 +28,7 @@ final class RetrySqlConnector implements SqlConnector
         }
     }
 
-    public function connect(SqlConfig $config, ?Cancellation $cancellation = null): Link
+    public function connect(SqlConfig $config, ?Cancellation $cancellation = null): Connection
     {
         $tries = 0;
         $exceptions = [];

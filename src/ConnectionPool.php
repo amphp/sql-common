@@ -4,6 +4,7 @@ namespace Amp\Sql\Common;
 
 use Amp\DeferredFuture;
 use Amp\Future;
+use Amp\Sql\Connection;
 use Amp\Sql\Link;
 use Amp\Sql\Pool;
 use Amp\Sql\Result;
@@ -21,26 +22,26 @@ use function Amp\async;
  * @template TConfig of SqlConfig
  * @template TResult of Result
  * @template TStatement of Statement<TResult>
- * @template TTransaction of Transaction<TResult, TStatement>
- * @template TLink of Link<TResult, TStatement, TTransaction>
+ * @template TTransaction of Transaction
+ * @template TConnection of Connection<TConfig, TResult, TStatement, TTransaction>
  *
- * @implements Pool<TResult, TStatement, TTransaction>
+ * @implements Pool<TConfig, TResult, TStatement, TTransaction>
  */
 abstract class ConnectionPool implements Pool
 {
     public const DEFAULT_MAX_CONNECTIONS = 100;
     public const DEFAULT_IDLE_TIMEOUT = 60;
 
-    /** @var \SplQueue<TLink> */
+    /** @var \SplQueue<TConnection> */
     private readonly \SplQueue $idle;
 
-    /** @var \SplObjectStorage<TLink, null> */
+    /** @var \SplObjectStorage<TConnection, null> */
     private readonly \SplObjectStorage $connections;
 
-    /** @var Future<TLink>|null */
+    /** @var Future<TConnection>|null */
     private ?Future $future = null;
 
-    /** @var DeferredFuture<TLink>|null */
+    /** @var DeferredFuture<TConnection>|null */
     private ?DeferredFuture $awaitingConnection = null;
 
     private readonly DeferredFuture $onClose;
@@ -86,7 +87,7 @@ abstract class ConnectionPool implements Pool
 
     /**
      * @param TConfig $config
-     * @param SqlConnector<TConfig, TLink> $connector
+     * @param SqlConnector<TConfig, TConnection> $connector
      * @param positive-int $maxConnections Maximum number of active connections in the pool.
      * @param positive-int $idleTimeout Number of seconds until idle connections are removed from the pool.
      */
@@ -95,6 +96,7 @@ abstract class ConnectionPool implements Pool
         private readonly SqlConnector $connector,
         private readonly int $maxConnections = self::DEFAULT_MAX_CONNECTIONS,
         private int $idleTimeout = self::DEFAULT_IDLE_TIMEOUT,
+        private TransactionIsolation $transactionIsolation = TransactionIsolationLevel::Committed,
     ) {
         /** @psalm-suppress TypeDoesNotContainType */
         if ($this->idleTimeout < 1) {
@@ -137,6 +139,11 @@ abstract class ConnectionPool implements Pool
     public function __destruct()
     {
         $this->close();
+    }
+
+    public function setTransactionIsolation(TransactionIsolation $isolation): void
+    {
+        $this->transactionIsolation = $isolation;
     }
 
     public function getIdleTimeout(): int
@@ -192,11 +199,11 @@ abstract class ConnectionPool implements Pool
     }
 
     /**
-     * @return TLink
+     * @return TConnection
      *
      * @throws SqlException
      */
-    public function extractConnection(): Link
+    public function extractConnection(): Connection
     {
         $connection = $this->pop();
         $this->connections->detach($connection);
@@ -219,12 +226,12 @@ abstract class ConnectionPool implements Pool
     }
 
     /**
-     * @return TLink
+     * @return TConnection
      *
      * @throws SqlException If creating a new connection fails.
      * @throws \Error If the pool has been closed.
      */
-    protected function pop(): Link
+    protected function pop(): Connection
     {
         if ($this->isClosed()) {
             throw new \Error("The pool has been closed");
@@ -289,11 +296,11 @@ abstract class ConnectionPool implements Pool
     }
 
     /**
-     * @param TLink $connection
+     * @param TConnection $connection
      *
      * @throws \Error If the connection is not part of this pool.
      */
-    protected function push(Link $connection): void
+    protected function push(Connection $connection): void
     {
         \assert(isset($this->connections[$connection]), 'Connection is not part of this pool');
 
@@ -365,13 +372,13 @@ abstract class ConnectionPool implements Pool
         return $this->createStatement($statement, fn () => $this->push($connection));
     }
 
-    public function beginTransaction(
-        TransactionIsolation $isolation = TransactionIsolationLevel::Committed
-    ): Transaction {
+    public function beginTransaction(): Transaction
+    {
         $connection = $this->pop();
 
         try {
-            $transaction = $connection->beginTransaction($isolation);
+            $connection->setTransactionIsolation($this->transactionIsolation);
+            $transaction = $connection->beginTransaction();
         } catch (\Throwable $exception) {
             $this->push($connection);
             throw $exception;
