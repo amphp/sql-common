@@ -55,7 +55,7 @@ abstract class PooledTransaction implements Transaction
      * @param TTransaction $transaction Transaction object created by pooled connection.
      * @param \Closure():void $release Callable to be invoked when the transaction completes or is destroyed.
      */
-    public function __construct(private readonly Transaction $transaction, \Closure $release)
+    public function __construct(protected readonly Transaction $transaction, \Closure $release)
     {
         $refCount = &$this->refCount;
         $this->release = static function () use (&$refCount, $release): void {
@@ -130,6 +130,21 @@ abstract class PooledTransaction implements Transaction
     public function rollback(): void
     {
         $this->transaction->rollback();
+    }
+
+    public function onCommit(\Closure $onCommit): void
+    {
+        $this->transaction->onCommit($onCommit);
+    }
+
+    public function onRollback(\Closure $onRollback): void
+    {
+        $this->transaction->onRollback($onRollback);
+    }
+
+    public function isNestedTransaction(): bool
+    {
+        return $this->transaction->isNestedTransaction();
     }
 
     public function getIsolationLevel(): TransactionIsolation
