@@ -2,6 +2,7 @@
 
 namespace Amp\Sql\Common;
 
+use Amp\DeferredFuture;
 use Amp\Sql\Result;
 use Amp\Sql\Statement;
 use Amp\Sql\Transaction;
@@ -20,6 +21,8 @@ abstract class PooledTransaction implements Transaction
     private readonly \Closure $release;
 
     private int $refCount = 1;
+
+    private ?DeferredFuture $busy = null;
 
     /**
      * Creates a Statement of the appropriate type using the Statement object returned by the Transaction object and
@@ -57,8 +60,12 @@ abstract class PooledTransaction implements Transaction
      */
     public function __construct(protected readonly Transaction $transaction, \Closure $release)
     {
+        $busy = &$this->busy;
         $refCount = &$this->refCount;
-        $this->release = static function () use (&$refCount, $release): void {
+        $this->release = static function () use (&$busy, &$refCount, $release): void {
+            $busy?->complete();
+            $busy = null;
+
             if (--$refCount === 0) {
                 $release();
             }
@@ -73,30 +80,59 @@ abstract class PooledTransaction implements Transaction
 
     public function query(string $sql): Result
     {
-        $result = $this->transaction->query($sql);
+        $this->awaitPendingNestedTransaction();
         ++$this->refCount;
-        return $this->createResult($result, $this->release);
+
+        try {
+            $result = $this->transaction->query($sql);
+            return $this->createResult($result, $this->release);
+        } catch (\Throwable $exception) {
+            ($this->release)();
+            throw $exception;
+        }
     }
 
     public function prepare(string $sql): Statement
     {
-        $statement = $this->transaction->prepare($sql);
+        $this->awaitPendingNestedTransaction();
         ++$this->refCount;
-        return $this->createStatement($statement, $this->release);
+
+        try {
+            $statement = $this->transaction->prepare($sql);
+            return $this->createStatement($statement, $this->release);
+        } catch (\Throwable $exception) {
+            ($this->release)();
+            throw $exception;
+        }
     }
 
     public function execute(string $sql, array $params = []): Result
     {
-        $result = $this->transaction->execute($sql, $params);
+        $this->awaitPendingNestedTransaction();
         ++$this->refCount;
-        return $this->createResult($result, $this->release);
+
+        try {
+            $result = $this->transaction->execute($sql, $params);
+            return $this->createResult($result, $this->release);
+        } catch (\Throwable $exception) {
+            ($this->release)();
+            throw $exception;
+        }
     }
 
     public function beginTransaction(): Transaction
     {
-        $transaction = $this->transaction->beginTransaction();
+        $this->awaitPendingNestedTransaction();
         ++$this->refCount;
-        return $this->createTransaction($transaction, $this->release);
+        $this->busy = new DeferredFuture();
+
+        try {
+            $transaction = $this->transaction->beginTransaction();
+            return $this->createTransaction($transaction, $this->release);
+        } catch (\Throwable $exception) {
+            ($this->release)();
+            throw $exception;
+        }
     }
 
     public function isClosed(): bool
@@ -109,6 +145,7 @@ abstract class PooledTransaction implements Transaction
      */
     public function close(): void
     {
+        $this->awaitPendingNestedTransaction();
         $this->transaction->close();
     }
 
@@ -124,11 +161,13 @@ abstract class PooledTransaction implements Transaction
 
     public function commit(): void
     {
+        $this->awaitPendingNestedTransaction();
         $this->transaction->commit();
     }
 
     public function rollback(): void
     {
+        $this->awaitPendingNestedTransaction();
         $this->transaction->rollback();
     }
 
@@ -155,5 +194,12 @@ abstract class PooledTransaction implements Transaction
     public function getLastUsedAt(): int
     {
         return $this->transaction->getLastUsedAt();
+    }
+
+    private function awaitPendingNestedTransaction(): void
+    {
+        while ($this->busy) {
+            $this->busy->getFuture()->await();
+        }
     }
 }
