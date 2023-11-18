@@ -2,6 +2,7 @@
 
 namespace Amp\Sql\Common;
 
+use Amp\DeferredFuture;
 use Amp\Sql\Result;
 use Amp\Sql\Statement;
 use Amp\Sql\Transaction;
@@ -9,17 +10,22 @@ use Amp\Sql\TransactionIsolation;
 
 /**
  * @template TResult of Result
- * @template TStatement of Statement
+ * @template TStatement of Statement<TResult>
  * @template TTransaction of Transaction
+ * @template TNestedTransaction of NestableTransaction<TResult, TStatement, TTransaction>
  *
- * @implements Transaction<TResult, TStatement, TTransaction>
+ * @implements NestableTransaction<TResult, TStatement, TTransaction>
  */
-abstract class PooledTransaction implements Transaction
+abstract class NestedTransaction implements NestableTransaction
 {
     /** @var \Closure():void */
     private readonly \Closure $release;
 
     private int $refCount = 1;
+
+    private ?DeferredFuture $busy = null;
+
+    private int $nextId = 1;
 
     /**
      * Creates a Statement of the appropriate type using the Statement object returned by the Transaction object and
@@ -44,21 +50,34 @@ abstract class PooledTransaction implements Transaction
     abstract protected function createResult(Result $result, \Closure $release): Result;
 
     /**
-     * @param TTransaction $transaction
+     * @param TNestedTransaction $transaction
+     * @param non-empty-string $identifier
      * @param \Closure():void $release
      *
      * @return TTransaction
      */
-    abstract protected function createTransaction(Transaction $transaction, \Closure $release): Transaction;
+    abstract protected function createNestedTransaction(
+        NestableTransaction $transaction,
+        string $identifier,
+        \Closure $release,
+    ): Transaction;
 
     /**
-     * @param TTransaction $transaction Transaction object created by pooled connection.
+     * @param TNestedTransaction $transaction Transaction object created by connection.
+     * @param non-empty-string $identifier
      * @param \Closure():void $release Callable to be invoked when the transaction completes or is destroyed.
      */
-    public function __construct(protected readonly Transaction $transaction, \Closure $release)
-    {
+    public function __construct(
+        protected readonly Transaction $transaction,
+        private readonly string $identifier,
+        \Closure $release,
+    ) {
+        $busy = &$this->busy;
         $refCount = &$this->refCount;
         $this->release = static function () use (&$busy, &$refCount, $release): void {
+            $busy?->complete();
+            $busy = null;
+
             if (--$refCount === 0) {
                 $release();
             }
@@ -73,6 +92,7 @@ abstract class PooledTransaction implements Transaction
 
     public function query(string $sql): Result
     {
+        $this->awaitPendingNestedTransaction();
         ++$this->refCount;
 
         try {
@@ -86,6 +106,7 @@ abstract class PooledTransaction implements Transaction
 
     public function prepare(string $sql): Statement
     {
+        $this->awaitPendingNestedTransaction();
         ++$this->refCount;
 
         try {
@@ -99,6 +120,7 @@ abstract class PooledTransaction implements Transaction
 
     public function execute(string $sql, array $params = []): Result
     {
+        $this->awaitPendingNestedTransaction();
         ++$this->refCount;
 
         try {
@@ -112,11 +134,15 @@ abstract class PooledTransaction implements Transaction
 
     public function beginTransaction(): Transaction
     {
+        $this->awaitPendingNestedTransaction();
         ++$this->refCount;
+        $this->busy = new DeferredFuture();
+
+        $identifier = $this->identifier . '-' . $this->nextId++;
 
         try {
-            $transaction = $this->transaction->beginTransaction();
-            return $this->createTransaction($transaction, $this->release);
+            $this->transaction->createSavepoint($identifier);
+            return $this->createNestedTransaction($this->transaction, $identifier, $this->release);
         } catch (\Throwable $exception) {
             $this->release();
             throw $exception;
@@ -133,6 +159,7 @@ abstract class PooledTransaction implements Transaction
      */
     public function close(): void
     {
+        $this->awaitPendingNestedTransaction();
         $this->transaction->close();
     }
 
@@ -148,12 +175,32 @@ abstract class PooledTransaction implements Transaction
 
     public function commit(): void
     {
+        $this->awaitPendingNestedTransaction();
         $this->transaction->commit();
     }
 
     public function rollback(): void
     {
+        $this->awaitPendingNestedTransaction();
         $this->transaction->rollback();
+    }
+
+    public function createSavepoint(string $identifier): void
+    {
+        $this->awaitPendingNestedTransaction();
+        $this->transaction->createSavepoint($identifier);
+    }
+
+    public function releaseSavepoint(string $identifier): void
+    {
+        $this->awaitPendingNestedTransaction();
+        $this->transaction->releaseSavepoint($identifier);
+    }
+
+    public function rollbackTo(string $identifier): void
+    {
+        $this->awaitPendingNestedTransaction();
+        $this->transaction->rollbackTo($identifier);
     }
 
     public function onCommit(\Closure $onCommit): void
@@ -179,6 +226,13 @@ abstract class PooledTransaction implements Transaction
     public function getLastUsedAt(): int
     {
         return $this->transaction->getLastUsedAt();
+    }
+
+    private function awaitPendingNestedTransaction(): void
+    {
+        while ($this->busy) {
+            $this->busy->getFuture()->await();
+        }
     }
 
     private function release(): void
