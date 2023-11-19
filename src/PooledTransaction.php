@@ -6,6 +6,7 @@ use Amp\Sql\Result;
 use Amp\Sql\Statement;
 use Amp\Sql\Transaction;
 use Amp\Sql\TransactionIsolation;
+use Revolt\EventLoop;
 
 /**
  * @template TResult of Result
@@ -79,7 +80,7 @@ abstract class PooledTransaction implements Transaction
             $result = $this->transaction->query($sql);
             return $this->createResult($result, $this->release);
         } catch (\Throwable $exception) {
-            $this->release();
+            EventLoop::queue($this->release);
             throw $exception;
         }
     }
@@ -92,7 +93,7 @@ abstract class PooledTransaction implements Transaction
             $statement = $this->transaction->prepare($sql);
             return $this->createStatement($statement, $this->release);
         } catch (\Throwable $exception) {
-            $this->release();
+            EventLoop::queue($this->release);
             throw $exception;
         }
     }
@@ -105,7 +106,7 @@ abstract class PooledTransaction implements Transaction
             $result = $this->transaction->execute($sql, $params);
             return $this->createResult($result, $this->release);
         } catch (\Throwable $exception) {
-            $this->release();
+            EventLoop::queue($this->release);
             throw $exception;
         }
     }
@@ -118,7 +119,7 @@ abstract class PooledTransaction implements Transaction
             $transaction = $this->transaction->beginTransaction();
             return $this->createTransaction($transaction, $this->release);
         } catch (\Throwable $exception) {
-            $this->release();
+            EventLoop::queue($this->release);
             throw $exception;
         }
     }
@@ -179,10 +180,5 @@ abstract class PooledTransaction implements Transaction
     public function getLastUsedAt(): int
     {
         return $this->transaction->getLastUsedAt();
-    }
-
-    private function release(): void
-    {
-        ($this->release)();
     }
 }

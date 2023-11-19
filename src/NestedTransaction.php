@@ -7,6 +7,7 @@ use Amp\Sql\Result;
 use Amp\Sql\Statement;
 use Amp\Sql\Transaction;
 use Amp\Sql\TransactionIsolation;
+use Revolt\EventLoop;
 
 /**
  * @template TResult of Result
@@ -99,7 +100,7 @@ abstract class NestedTransaction implements NestableTransaction
             $result = $this->transaction->query($sql);
             return $this->createResult($result, $this->release);
         } catch (\Throwable $exception) {
-            $this->release();
+            EventLoop::queue($this->release);
             throw $exception;
         }
     }
@@ -113,7 +114,7 @@ abstract class NestedTransaction implements NestableTransaction
             $statement = $this->transaction->prepare($sql);
             return $this->createStatement($statement, $this->release);
         } catch (\Throwable $exception) {
-            $this->release();
+            EventLoop::queue($this->release);
             throw $exception;
         }
     }
@@ -127,7 +128,7 @@ abstract class NestedTransaction implements NestableTransaction
             $result = $this->transaction->execute($sql, $params);
             return $this->createResult($result, $this->release);
         } catch (\Throwable $exception) {
-            $this->release();
+            EventLoop::queue($this->release);
             throw $exception;
         }
     }
@@ -144,7 +145,7 @@ abstract class NestedTransaction implements NestableTransaction
             $this->transaction->createSavepoint($identifier);
             return $this->createNestedTransaction($this->transaction, $identifier, $this->release);
         } catch (\Throwable $exception) {
-            $this->release();
+            EventLoop::queue($this->release);
             throw $exception;
         }
     }
@@ -233,10 +234,5 @@ abstract class NestedTransaction implements NestableTransaction
         while ($this->busy) {
             $this->busy->getFuture()->await();
         }
-    }
-
-    private function release(): void
-    {
-        ($this->release)();
     }
 }
