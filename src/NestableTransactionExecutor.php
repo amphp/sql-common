@@ -2,6 +2,7 @@
 
 namespace Amp\Sql\Common;
 
+use Amp\Sql\Executor;
 use Amp\Sql\Result;
 use Amp\Sql\Statement;
 use Amp\Sql\Transaction;
@@ -12,9 +13,9 @@ use Amp\Sql\TransactionError;
  * @template TStatement of Statement<TResult>
  * @template TTransaction of Transaction
  *
- * @extends Transaction<TResult, TStatement, TTransaction>
+ * @extends Executor<TResult, TStatement, TTransaction>
  */
-interface NestableTransaction extends Transaction
+interface NestableTransactionExecutor extends Executor
 {
     /**
      * Creates a savepoint with the given identifier.

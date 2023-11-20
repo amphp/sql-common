@@ -3,6 +3,7 @@
 namespace Amp\Sql\Common;
 
 use Amp\DeferredFuture;
+use Amp\Sql\Executor;
 use Amp\Sql\Result;
 use Amp\Sql\Statement;
 use Amp\Sql\Transaction;
@@ -14,11 +15,11 @@ use Revolt\EventLoop;
  * @template TResult of Result
  * @template TStatement of Statement<TResult>
  * @template TTransaction of Transaction
- * @template TNestedTransaction of NestableTransaction<TResult, TStatement, TTransaction>
+ * @template TNestedExecutor of NestableTransactionExecutor<TResult, TStatement, TTransaction>
  *
- * @implements NestableTransaction<TResult, TStatement, TTransaction>
+ * @implements Transaction<TResult, TStatement, TTransaction>
  */
-abstract class NestedTransaction implements NestableTransaction
+abstract class NestedTransaction implements Transaction
 {
     /** @var \Closure():void */
     private readonly \Closure $release;
@@ -58,25 +59,27 @@ abstract class NestedTransaction implements NestableTransaction
     abstract protected function createResult(Result $result, \Closure $release): Result;
 
     /**
-     * @param TNestedTransaction $transaction
+     * @param TNestedExecutor $executor
      * @param non-empty-string $identifier
      * @param \Closure():void $release
      *
      * @return TTransaction
      */
     abstract protected function createNestedTransaction(
-        NestableTransaction $transaction,
+        NestableTransactionExecutor $executor,
         string $identifier,
         \Closure $release,
     ): Transaction;
 
     /**
-     * @param TNestedTransaction $transaction Transaction object created by connection.
+     * @param TTransaction $transaction Transaction object created by connection.
+     * @param TNestedExecutor $executor
      * @param non-empty-string $identifier
      * @param \Closure():void $release Callable to be invoked when the transaction completes or is destroyed.
      */
     public function __construct(
         protected readonly Transaction $transaction,
+        protected readonly Executor $executor,
         private readonly string $identifier,
         \Closure $release,
     ) {
@@ -106,7 +109,7 @@ abstract class NestedTransaction implements NestableTransaction
         ++$this->refCount;
 
         try {
-            $result = $this->transaction->query($sql);
+            $result = $this->executor->query($sql);
             return $this->createResult($result, $this->release);
         } catch (\Throwable $exception) {
             EventLoop::queue($this->release);
@@ -120,7 +123,7 @@ abstract class NestedTransaction implements NestableTransaction
         ++$this->refCount;
 
         try {
-            $statement = $this->transaction->prepare($sql);
+            $statement = $this->executor->prepare($sql);
             return $this->createStatement($statement, $this->release);
         } catch (\Throwable $exception) {
             EventLoop::queue($this->release);
@@ -134,7 +137,7 @@ abstract class NestedTransaction implements NestableTransaction
         ++$this->refCount;
 
         try {
-            $result = $this->transaction->execute($sql, $params);
+            $result = $this->executor->execute($sql, $params);
             return $this->createResult($result, $this->release);
         } catch (\Throwable $exception) {
             EventLoop::queue($this->release);
@@ -151,8 +154,8 @@ abstract class NestedTransaction implements NestableTransaction
         $identifier = $this->identifier . '-' . $this->nextId++;
 
         try {
-            $this->transaction->createSavepoint($identifier);
-            return $this->createNestedTransaction($this->transaction, $identifier, $this->release);
+            $this->executor->createSavepoint($identifier);
+            return $this->createNestedTransaction($this->executor, $identifier, $this->release);
         } catch (\Throwable $exception) {
             EventLoop::queue($this->release);
             throw $exception;
@@ -161,7 +164,7 @@ abstract class NestedTransaction implements NestableTransaction
 
     public function isClosed(): bool
     {
-        return $this->transaction->isClosed();
+        return $this->executor->isClosed();
     }
 
     /**
@@ -176,12 +179,12 @@ abstract class NestedTransaction implements NestableTransaction
 
     public function onClose(\Closure $onClose): void
     {
-        $this->transaction->onClose($onClose);
+        $this->executor->onClose($onClose);
     }
 
     public function isActive(): bool
     {
-        return $this->transaction->isActive();
+        return !$this->isClosed();
     }
 
     public function commit(): void
@@ -189,11 +192,11 @@ abstract class NestedTransaction implements NestableTransaction
         $this->awaitPendingNestedTransaction();
         $this->active = false;
 
-        $this->transaction->releaseSavepoint($this->identifier);
+        $this->executor->releaseSavepoint($this->identifier);
         EventLoop::queue($this->release);
 
         $onRollback = $this->onRollback;
-        $this->transaction->onRollback(static fn() => $onRollback->isComplete() || $onRollback->complete());
+        $this->transaction->onRollback(static fn () => $onRollback->isComplete() || $onRollback->complete());
         $this->onClose->complete();
     }
 
@@ -202,29 +205,11 @@ abstract class NestedTransaction implements NestableTransaction
         $this->awaitPendingNestedTransaction();
         $this->active = false;
 
-        $this->transaction->rollbackTo($this->identifier);
+        $this->executor->rollbackTo($this->identifier);
         EventLoop::queue($this->release);
 
         $this->onRollback->complete();
         $this->onClose->complete();
-    }
-
-    public function createSavepoint(string $identifier): void
-    {
-        $this->awaitPendingNestedTransaction();
-        $this->transaction->createSavepoint($identifier);
-    }
-
-    public function releaseSavepoint(string $identifier): void
-    {
-        $this->awaitPendingNestedTransaction();
-        $this->transaction->releaseSavepoint($identifier);
-    }
-
-    public function rollbackTo(string $identifier): void
-    {
-        $this->awaitPendingNestedTransaction();
-        $this->transaction->rollbackTo($identifier);
     }
 
     public function onCommit(\Closure $onCommit): void
