@@ -59,14 +59,16 @@ abstract class NestedTransaction implements Transaction
     abstract protected function createResult(Result $result, \Closure $release): Result;
 
     /**
-     * @param TNestedExecutor $executor
+     * @param TTransaction $transaction
+     * @param Executor<TResult, TStatement, TTransaction> $executor
      * @param non-empty-string $identifier
      * @param \Closure():void $release
      *
      * @return TTransaction
      */
     abstract protected function createNestedTransaction(
-        NestableTransactionExecutor $executor,
+        Transaction $transaction,
+        Executor $executor,
         string $identifier,
         \Closure $release,
     ): Transaction;
@@ -155,7 +157,7 @@ abstract class NestedTransaction implements Transaction
 
         try {
             $this->executor->createSavepoint($identifier);
-            return $this->createNestedTransaction($this->executor, $identifier, $this->release);
+            return $this->createNestedTransaction($this->transaction, $this->executor, $identifier, $this->release);
         } catch (\Throwable $exception) {
             EventLoop::queue($this->release);
             throw $exception;
