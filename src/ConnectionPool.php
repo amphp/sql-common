@@ -146,6 +146,11 @@ abstract class ConnectionPool implements Pool
         $this->transactionIsolation = $isolation;
     }
 
+    public function getConfig(): SqlConfig
+    {
+        return $this->config;
+    }
+
     public function getIdleTimeout(): int
     {
         return $this->idleTimeout;
