@@ -56,7 +56,7 @@ abstract class PooledTransaction implements Transaction
      * @param TTransaction $transaction Transaction object created by pooled connection.
      * @param \Closure():void $release Callable to be invoked when the transaction completes or is destroyed.
      */
-    public function __construct(protected readonly Transaction $transaction, \Closure $release)
+    public function __construct(private readonly Transaction $transaction, \Closure $release)
     {
         $refCount = &$this->refCount;
         $this->release = static function () use (&$busy, &$refCount, $release): void {
