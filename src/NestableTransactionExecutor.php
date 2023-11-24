@@ -11,9 +11,8 @@ use Amp\Sql\TransactionError;
 /**
  * @template TResult of Result
  * @template TStatement of Statement<TResult>
- * @template TTransaction of Transaction
  *
- * @extends Executor<TResult, TStatement, TTransaction>
+ * @extends Executor<TResult, TStatement>
  */
 interface NestableTransactionExecutor extends Executor
 {

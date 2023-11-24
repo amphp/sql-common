@@ -15,7 +15,7 @@ use Revolt\EventLoop;
  * @template TResult of Result
  * @template TStatement of Statement<TResult>
  * @template TTransaction of Transaction
- * @template TNestedExecutor of NestableTransactionExecutor<TResult, TStatement, TTransaction>
+ * @template TNestedExecutor of NestableTransactionExecutor<TResult, TStatement>
  *
  * @implements Transaction<TResult, TStatement, TTransaction>
  */
@@ -60,7 +60,7 @@ abstract class NestedTransaction implements Transaction
 
     /**
      * @param TTransaction $transaction
-     * @param Executor<TResult, TStatement, TTransaction> $executor
+     * @param TNestedExecutor $executor
      * @param non-empty-string $identifier
      * @param \Closure():void $release
      *
@@ -80,8 +80,8 @@ abstract class NestedTransaction implements Transaction
      * @param \Closure():void $release Callable to be invoked when the transaction completes or is destroyed.
      */
     public function __construct(
-        protected readonly Transaction $transaction,
-        protected readonly Executor $executor,
+        private readonly Transaction $transaction,
+        private readonly Executor $executor,
         private readonly string $identifier,
         \Closure $release,
     ) {
@@ -99,9 +99,11 @@ abstract class NestedTransaction implements Transaction
             }
         };
 
+        $this->onClose($this->release);
+
         if (!$this->transaction->isActive()) {
             $this->active = false;
-            EventLoop::queue($release);
+            $this->onClose->complete();
         }
     }
 
@@ -166,7 +168,7 @@ abstract class NestedTransaction implements Transaction
 
     public function isClosed(): bool
     {
-        return $this->executor->isClosed();
+        return $this->onClose->isComplete();
     }
 
     /**
@@ -181,12 +183,12 @@ abstract class NestedTransaction implements Transaction
 
     public function onClose(\Closure $onClose): void
     {
-        $this->executor->onClose($onClose);
+        $this->onClose->getFuture()->finally($onClose);
     }
 
     public function isActive(): bool
     {
-        return !$this->isClosed();
+        return $this->active && $this->transaction->isActive();
     }
 
     public function commit(): void
@@ -195,7 +197,6 @@ abstract class NestedTransaction implements Transaction
         $this->active = false;
 
         $this->executor->releaseSavepoint($this->identifier);
-        EventLoop::queue($this->release);
 
         $onRollback = $this->onRollback;
         $this->transaction->onRollback(static fn () => $onRollback->isComplete() || $onRollback->complete());
@@ -208,7 +209,6 @@ abstract class NestedTransaction implements Transaction
         $this->active = false;
 
         $this->executor->rollbackTo($this->identifier);
-        EventLoop::queue($this->release);
 
         $this->onRollback->complete();
         $this->onClose->complete();
