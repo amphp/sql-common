@@ -177,11 +177,11 @@ abstract class NestedTransaction implements Transaction
         $this->awaitPendingNestedTransaction();
         $this->active = false;
 
+        $this->executor->releaseSavepoint($this->identifier);
+
         $onRollback = $this->onRollback;
         $this->transaction->onRollback(static fn () => $onRollback->isComplete() || $onRollback->complete());
         $this->onClose->complete();
-
-        $this->executor->releaseSavepoint($this->identifier);
     }
 
     public function rollback(): void
@@ -189,10 +189,10 @@ abstract class NestedTransaction implements Transaction
         $this->awaitPendingNestedTransaction();
         $this->active = false;
 
+        $this->executor->rollbackTo($this->identifier);
+
         $this->onRollback->complete();
         $this->onClose->complete();
-
-        $this->executor->rollbackTo($this->identifier);
     }
 
     public function onCommit(\Closure $onCommit): void
