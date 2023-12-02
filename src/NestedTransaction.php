@@ -37,17 +37,6 @@ abstract class NestedTransaction implements Transaction
     private int $nextId = 1;
 
     /**
-     * Creates a Statement of the appropriate type using the Statement object returned by the Transaction object and
-     * the given release callable.
-     *
-     * @param TStatement $statement
-     * @param \Closure():void $release
-     *
-     * @return TStatement
-     */
-    abstract protected function createStatement(Statement $statement, \Closure $release): Statement;
-
-    /**
      * Creates a Result of the appropriate type using the Result object returned by the Link object and the
      * given release callable.
      *
@@ -124,15 +113,8 @@ abstract class NestedTransaction implements Transaction
     public function prepare(string $sql): Statement
     {
         $this->awaitPendingNestedTransaction();
-        ++$this->refCount;
 
-        try {
-            $statement = $this->executor->prepare($sql);
-            return $this->createStatement($statement, $this->release);
-        } catch (\Throwable $exception) {
-            EventLoop::queue($this->release);
-            throw $exception;
-        }
+        return $this->executor->prepare($sql);
     }
 
     public function execute(string $sql, array $params = []): Result
@@ -196,11 +178,11 @@ abstract class NestedTransaction implements Transaction
         $this->awaitPendingNestedTransaction();
         $this->active = false;
 
-        $this->executor->releaseSavepoint($this->identifier);
-
         $onRollback = $this->onRollback;
         $this->transaction->onRollback(static fn () => $onRollback->isComplete() || $onRollback->complete());
         $this->onClose->complete();
+
+        $this->executor->releaseSavepoint($this->identifier);
     }
 
     public function rollback(): void
@@ -208,10 +190,10 @@ abstract class NestedTransaction implements Transaction
         $this->awaitPendingNestedTransaction();
         $this->active = false;
 
-        $this->executor->rollbackTo($this->identifier);
-
         $this->onRollback->complete();
         $this->onClose->complete();
+
+        $this->executor->rollbackTo($this->identifier);
     }
 
     public function onCommit(\Closure $onCommit): void
