@@ -3,7 +3,6 @@
 namespace Amp\Sql\Common;
 
 use Amp\DeferredFuture;
-use Amp\Sql\Executor;
 use Amp\Sql\Result;
 use Amp\Sql\Statement;
 use Amp\Sql\Transaction;
@@ -57,7 +56,7 @@ abstract class NestedTransaction implements Transaction
      */
     abstract protected function createNestedTransaction(
         Transaction $transaction,
-        Executor $executor,
+        NestableTransactionExecutor $executor,
         string $identifier,
         \Closure $release,
     ): Transaction;
@@ -70,7 +69,7 @@ abstract class NestedTransaction implements Transaction
      */
     public function __construct(
         private readonly Transaction $transaction,
-        private readonly Executor $executor,
+        private readonly NestableTransactionExecutor $executor,
         private readonly string $identifier,
         \Closure $release,
     ) {
