@@ -4,6 +4,7 @@ namespace Amp\Sql\Common;
 
 use Amp\DeferredFuture;
 use Amp\Sql\Result;
+use Amp\Sql\SqlException;
 use Amp\Sql\Statement;
 use Amp\Sql\Transaction;
 use Amp\Sql\TransactionError;
@@ -95,6 +96,37 @@ abstract class NestedTransaction implements Transaction
         }
     }
 
+    public function __destruct()
+    {
+        if ($this->onClose->isComplete()) {
+            return;
+        }
+
+        $this->onClose->complete();
+
+        if ($this->executor->isClosed()) {
+            return;
+        }
+
+        $busy = &$this->busy;
+        $transaction = $this->transaction;
+        $executor = $this->executor;
+        $identifier = $this->identifier;
+        EventLoop::queue(static function () use (&$busy, $transaction, $executor, $identifier): void {
+            try {
+                while ($busy) {
+                    $busy->getFuture()->await();
+                }
+
+                if ($transaction->isActive() && !$executor->isClosed()) {
+                    $executor->rollbackTo($identifier);
+                }
+            } catch (SqlException) {
+                // Ignore failure if connection closes during query.
+            }
+        });
+    }
+
     public function query(string $sql): Result
     {
         $this->awaitPendingNestedTransaction();
@@ -157,7 +189,7 @@ abstract class NestedTransaction implements Transaction
      */
     public function close(): void
     {
-        if ($this->active) {
+        if ($this->active && $this->transaction->isActive() && !$this->executor->isClosed()) {
             $this->rollback();
         }
     }
