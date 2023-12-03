@@ -30,9 +30,9 @@ abstract class NestedTransaction implements Transaction
 
     private ?DeferredFuture $busy = null;
 
-    private DeferredFuture $onClose;
-
+    private DeferredFuture $onCommit;
     private DeferredFuture $onRollback;
+    private DeferredFuture $onClose;
 
     private int $nextId = 1;
 
@@ -74,6 +74,7 @@ abstract class NestedTransaction implements Transaction
         private readonly string $identifier,
         \Closure $release,
     ) {
+        $this->onCommit = new DeferredFuture();
         $this->onRollback = new DeferredFuture();
         $this->onClose = new DeferredFuture();
 
@@ -112,7 +113,16 @@ abstract class NestedTransaction implements Transaction
         $transaction = $this->transaction;
         $executor = $this->executor;
         $identifier = $this->identifier;
-        EventLoop::queue(static function () use (&$busy, $transaction, $executor, $identifier): void {
+        $onRollback = $this->onRollback;
+        $onClose = $this->onClose;
+        EventLoop::queue(static function () use (
+            &$busy,
+            $transaction,
+            $executor,
+            $identifier,
+            $onRollback,
+            $onClose
+        ): void {
             try {
                 while ($busy) {
                     $busy->getFuture()->await();
@@ -123,6 +133,9 @@ abstract class NestedTransaction implements Transaction
                 }
             } catch (SqlException) {
                 // Ignore failure if connection closes during query.
+            } finally {
+                $transaction->onRollback(static fn () => $onRollback->isComplete() || $onRollback->complete());
+                $onClose->complete();
             }
         });
     }
@@ -189,9 +202,11 @@ abstract class NestedTransaction implements Transaction
      */
     public function close(): void
     {
-        if ($this->active && $this->transaction->isActive() && !$this->executor->isClosed()) {
-            $this->rollback();
+        if (!$this->active) {
+            return;
         }
+
+        $this->rollback();
     }
 
     public function onClose(\Closure $onClose): void
@@ -206,40 +221,43 @@ abstract class NestedTransaction implements Transaction
 
     public function commit(): void
     {
-        $this->awaitPendingNestedTransaction();
         $this->active = false;
+        $this->awaitPendingNestedTransaction();
 
-        $this->executor->releaseSavepoint($this->identifier);
+        try {
+            $this->executor->releaseSavepoint($this->identifier);
+        } finally {
+            $onCommit = $this->onCommit;
+            $this->transaction->onCommit(static fn () => $onCommit->isComplete() || $onCommit->complete());
 
-        $onRollback = $this->onRollback;
-        $this->transaction->onRollback(static fn () => $onRollback->isComplete() || $onRollback->complete());
-        $this->onClose->complete();
+            $onRollback = $this->onRollback;
+            $this->transaction->onRollback(static fn () => $onRollback->isComplete() || $onRollback->complete());
+
+            $this->onClose->complete();
+        }
     }
 
     public function rollback(): void
     {
-        $this->awaitPendingNestedTransaction();
         $this->active = false;
+        $this->awaitPendingNestedTransaction();
 
-        $this->executor->rollbackTo($this->identifier);
-
-        $this->onRollback->complete();
-        $this->onClose->complete();
+        try {
+            $this->executor->rollbackTo($this->identifier);
+        } finally {
+            $this->onRollback->complete();
+            $this->onClose->complete();
+        }
     }
 
     public function onCommit(\Closure $onCommit): void
     {
-        $this->transaction->onCommit($onCommit);
+        $this->onCommit->getFuture()->finally($onCommit);
     }
 
     public function onRollback(\Closure $onRollback): void
     {
-        if ($this->active) {
-            $this->onRollback->getFuture()->finally($onRollback);
-            return;
-        }
-
-        $this->transaction->onRollback($onRollback);
+        $this->onRollback->getFuture()->finally($onRollback);
     }
 
     public function isNestedTransaction(): bool
@@ -263,7 +281,7 @@ abstract class NestedTransaction implements Transaction
             $this->busy->getFuture()->await();
         }
 
-        if (!$this->active) {
+        if ($this->isClosed()) {
             throw new TransactionError('The transaction has already been committed or rolled back');
         }
     }
