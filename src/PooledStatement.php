@@ -15,9 +15,6 @@ use Revolt\EventLoop;
  */
 abstract class PooledStatement implements Statement
 {
-    /** @var TStatement */
-    private readonly Statement $statement;
-
     /** @var null|\Closure():void */
     private ?\Closure $release;
 
@@ -38,11 +35,14 @@ abstract class PooledStatement implements Statement
      * @param TStatement $statement Statement object created by pooled connection.
      * @param \Closure():void $release Callable to be invoked when the statement and any associated results are
      *     destroyed.
+     * @param (\Closure():void)|null $awaitBusyResource Callable invoked before executing the statement, which should
+     *     wait if the parent resource is busy with another action (e.g., a nested transaction).
      */
-    public function __construct(Statement $statement, \Closure $release)
-    {
-        $this->statement = $statement;
-
+    public function __construct(
+        private readonly Statement $statement,
+        \Closure $release,
+        private readonly ?\Closure $awaitBusyResource = null,
+    ) {
         $refCount = &$this->refCount;
         $this->release = static function () use (&$refCount, $release): void {
             if (--$refCount === 0) {
@@ -64,6 +64,8 @@ abstract class PooledStatement implements Statement
         if (!$this->release) {
             throw new SqlException('The statement has been closed');
         }
+
+        $this->awaitBusyResource && ($this->awaitBusyResource)();
 
         $result = $this->statement->execute($params);
 

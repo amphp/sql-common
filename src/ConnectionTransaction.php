@@ -19,7 +19,7 @@ use Revolt\EventLoop;
  *
  * @implements Transaction<TResult, TStatement, TTransaction>
  */
-abstract class NestedTransaction implements Transaction
+abstract class ConnectionTransaction implements Transaction
 {
     /** @var \Closure():void */
     private readonly \Closure $release;
@@ -34,8 +34,6 @@ abstract class NestedTransaction implements Transaction
 
     private ?DeferredFuture $busy = null;
 
-    private int $nextId = 1;
-
     /**
      * Creates a Result of the appropriate type using the Result object returned by the Link object and the
      * given release callable.
@@ -46,6 +44,22 @@ abstract class NestedTransaction implements Transaction
      * @return TResult
      */
     abstract protected function createResult(Result $result, \Closure $release): Result;
+
+    /**
+     * Creates a Statement of the appropriate type using the Statement object returned by the Transaction object and
+     * the given release callable.
+     *
+     * @param TStatement $statement
+     * @param \Closure():void $release
+     * @param \Closure():void $awaitBusyResource
+     *
+     * @return TStatement
+     */
+    abstract protected function createStatement(
+        Statement $statement,
+        \Closure $release,
+        \Closure $awaitBusyResource,
+    ): Statement;
 
     /**
      * @param TTransaction $transaction
@@ -63,21 +77,14 @@ abstract class NestedTransaction implements Transaction
     ): Transaction;
 
     /**
-     * @param TTransaction $transaction Transaction object created by connection.
      * @param TNestedExecutor $executor
-     * @param non-empty-string $identifier
-     * @param \Closure():void $release Callable to be invoked when the transaction completes or is destroyed.
+     * @param \Closure():void $release
      */
     public function __construct(
-        private readonly Transaction $transaction,
         private readonly NestableTransactionExecutor $executor,
-        private readonly string $identifier,
         \Closure $release,
+        private readonly TransactionIsolation $isolation,
     ) {
-        $this->onCommit = new DeferredFuture();
-        $this->onRollback = new DeferredFuture();
-        $this->onClose = new DeferredFuture();
-
         $busy = &$this->busy;
         $refCount = &$this->refCount;
         $this->release = static function () use (&$busy, &$refCount, $release): void {
@@ -89,116 +96,58 @@ abstract class NestedTransaction implements Transaction
             }
         };
 
-        $this->onClose($this->release);
+        $this->onCommit = new DeferredFuture();
+        $this->onRollback = new DeferredFuture();
+        $this->onClose = new DeferredFuture();
 
-        if (!$this->transaction->isActive()) {
-            $this->active = false;
-            $this->onClose->complete();
-        }
+        $this->onClose($this->release);
     }
 
     public function __destruct()
     {
-        if ($this->onClose->isComplete()) {
+        if (!$this->active) {
             return;
         }
 
-        $this->onClose->complete();
-
         if ($this->executor->isClosed()) {
-            return;
+            $this->onRollback->complete();
+            $this->onClose->complete();
         }
 
         $busy = &$this->busy;
-        $transaction = $this->transaction;
         $executor = $this->executor;
-        $identifier = $this->identifier;
         $onRollback = $this->onRollback;
         $onClose = $this->onClose;
-        EventLoop::queue(static function () use (
-            &$busy,
-            $transaction,
-            $executor,
-            $identifier,
-            $onRollback,
-            $onClose,
-        ): void {
+        EventLoop::queue(static function () use (&$busy, $executor, $onRollback, $onClose): void {
             try {
                 while ($busy) {
                     $busy->getFuture()->await();
                 }
 
-                if ($transaction->isActive() && !$executor->isClosed()) {
-                    $executor->rollbackTo($identifier);
+                if (!$executor->isClosed()) {
+                    $executor->rollback();
                 }
             } catch (SqlException) {
                 // Ignore failure if connection closes during query.
             } finally {
-                $transaction->onRollback(static fn () => $onRollback->isComplete() || $onRollback->complete());
+                $onRollback->complete();
                 $onClose->complete();
             }
         });
     }
 
-    public function query(string $sql): Result
+    public function getLastUsedAt(): int
     {
-        $this->awaitPendingNestedTransaction();
-        ++$this->refCount;
-
-        try {
-            $result = $this->executor->query($sql);
-            return $this->createResult($result, $this->release);
-        } catch (\Throwable $exception) {
-            EventLoop::queue($this->release);
-            throw $exception;
-        }
+        return $this->executor->getLastUsedAt();
     }
 
-    public function prepare(string $sql): Statement
+    public function isNestedTransaction(): bool
     {
-        $this->awaitPendingNestedTransaction();
-
-        return $this->executor->prepare($sql);
-    }
-
-    public function execute(string $sql, array $params = []): Result
-    {
-        $this->awaitPendingNestedTransaction();
-        ++$this->refCount;
-
-        try {
-            $result = $this->executor->execute($sql, $params);
-            return $this->createResult($result, $this->release);
-        } catch (\Throwable $exception) {
-            EventLoop::queue($this->release);
-            throw $exception;
-        }
-    }
-
-    public function beginTransaction(): Transaction
-    {
-        $this->awaitPendingNestedTransaction();
-        ++$this->refCount;
-        $this->busy = new DeferredFuture();
-
-        $identifier = $this->identifier . '-' . $this->nextId++;
-
-        try {
-            $this->executor->createSavepoint($identifier);
-            return $this->createNestedTransaction($this->transaction, $this->executor, $identifier, $this->release);
-        } catch (\Throwable $exception) {
-            EventLoop::queue($this->release);
-            throw $exception;
-        }
-    }
-
-    public function isClosed(): bool
-    {
-        return $this->onClose->isComplete();
+        return false;
     }
 
     /**
-     * Rolls back the transaction if it has not been committed.
+     * Closes and rolls back all changes in the transaction.
      */
     public function close(): void
     {
@@ -206,7 +155,12 @@ abstract class NestedTransaction implements Transaction
             return;
         }
 
-        $this->rollback();
+        $this->rollback(); // Invokes $this->release callback.
+    }
+
+    public function isClosed(): bool
+    {
+        return $this->onClose->isComplete();
     }
 
     public function onClose(\Closure $onClose): void
@@ -214,36 +168,129 @@ abstract class NestedTransaction implements Transaction
         $this->onClose->getFuture()->finally($onClose);
     }
 
+    /**
+     * @return bool True if the transaction is active, false if it has been committed or rolled back.
+     */
     public function isActive(): bool
     {
-        return $this->active && $this->transaction->isActive();
+        return $this->active && !$this->executor->isClosed();
     }
 
+    public function getIsolationLevel(): TransactionIsolation
+    {
+        return $this->isolation;
+    }
+
+    /**
+     * @throws TransactionError If the transaction has been committed or rolled back.
+     */
+    public function query(string $sql): Result
+    {
+        $this->awaitPendingNestedTransaction();
+
+        ++$this->refCount;
+        try {
+            $result = $this->executor->query($sql);
+        } catch (\Throwable $exception) {
+            EventLoop::queue($this->release);
+            throw $exception;
+        }
+
+        return $this->createResult($result, $this->release);
+    }
+
+    /**
+     * @throws TransactionError If the transaction has been committed or rolled back.
+     *
+     * @psalm-suppress InvalidReturnStatement, InvalidReturnType
+     */
+    public function prepare(string $sql): Statement
+    {
+        $this->awaitPendingNestedTransaction();
+
+        ++$this->refCount;
+        try {
+            $statement = $this->executor->prepare($sql);
+        } catch (\Throwable $exception) {
+            EventLoop::queue($this->release);
+            throw $exception;
+        }
+
+        $busy = &$this->busy;
+        return $this->createStatement($statement, $this->release, static function () use (&$busy): void {
+            while ($busy) {
+                $busy->getFuture()->await();
+            }
+        });
+    }
+
+    /**
+     * @throws TransactionError If the transaction has been committed or rolled back.
+     */
+    public function execute(string $sql, array $params = []): Result
+    {
+        $this->awaitPendingNestedTransaction();
+
+        ++$this->refCount;
+        try {
+            $statement = $this->executor->prepare($sql);
+            $result = $statement->execute($params);
+        } catch (\Throwable $exception) {
+            EventLoop::queue($this->release);
+            throw $exception;
+        }
+
+        return $this->createResult($result, $this->release);
+    }
+
+    public function beginTransaction(): Transaction
+    {
+        $this->awaitPendingNestedTransaction();
+
+        ++$this->refCount;
+        $this->busy = new DeferredFuture();
+        try {
+            $identifier = \bin2hex(\random_bytes(8));
+            $this->executor->createSavepoint($identifier);
+        } catch (\Throwable $exception) {
+            EventLoop::queue($this->release);
+            throw $exception;
+        }
+
+        /** @psalm-suppress InvalidArgument Recursive templates prevent satisfying this call. */
+        return $this->createNestedTransaction($this, $this->executor, $identifier, $this->release);
+    }
+
+    /**
+     * Commits the transaction and makes it inactive.
+     *
+     * @throws TransactionError If the transaction has been committed or rolled back.
+     */
     public function commit(): void
     {
         $this->active = false;
         $this->awaitPendingNestedTransaction();
 
         try {
-            $this->executor->releaseSavepoint($this->identifier);
+            $this->executor->commit();
         } finally {
-            $onCommit = $this->onCommit;
-            $this->transaction->onCommit(static fn () => $onCommit->isComplete() || $onCommit->complete());
-
-            $onRollback = $this->onRollback;
-            $this->transaction->onRollback(static fn () => $onRollback->isComplete() || $onRollback->complete());
-
+            $this->onCommit->complete();
             $this->onClose->complete();
         }
     }
 
+    /**
+     * Rolls back the transaction and makes it inactive.
+     *
+     * @throws TransactionError If the transaction has been committed or rolled back.
+     */
     public function rollback(): void
     {
         $this->active = false;
         $this->awaitPendingNestedTransaction();
 
         try {
-            $this->executor->rollbackTo($this->identifier);
+            $this->executor->rollback();
         } finally {
             $this->onRollback->complete();
             $this->onClose->complete();
@@ -260,21 +307,6 @@ abstract class NestedTransaction implements Transaction
         $this->onRollback->getFuture()->finally($onRollback);
     }
 
-    public function isNestedTransaction(): bool
-    {
-        return true;
-    }
-
-    public function getIsolationLevel(): TransactionIsolation
-    {
-        return $this->transaction->getIsolationLevel();
-    }
-
-    public function getLastUsedAt(): int
-    {
-        return $this->transaction->getLastUsedAt();
-    }
-
     private function awaitPendingNestedTransaction(): void
     {
         while ($this->busy) {
@@ -282,7 +314,7 @@ abstract class NestedTransaction implements Transaction
         }
 
         if ($this->isClosed()) {
-            throw new TransactionError('The transaction has already been committed or rolled back');
+            throw new TransactionError("The transaction has been committed or rolled back");
         }
     }
 }

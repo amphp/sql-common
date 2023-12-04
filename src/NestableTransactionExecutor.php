@@ -5,8 +5,6 @@ namespace Amp\Sql\Common;
 use Amp\Sql\Executor;
 use Amp\Sql\Result;
 use Amp\Sql\Statement;
-use Amp\Sql\Transaction;
-use Amp\Sql\TransactionError;
 
 /**
  * @template TResult of Result
@@ -17,11 +15,19 @@ use Amp\Sql\TransactionError;
 interface NestableTransactionExecutor extends Executor
 {
     /**
+     * Commits the current transaction.
+     */
+    public function commit(): void;
+
+    /**
+     * Rolls back the current transaction.
+     */
+    public function rollback(): void;
+
+    /**
      * Creates a savepoint with the given identifier.
      *
      * @param non-empty-string $identifier Savepoint identifier.
-     *
-     * @throws TransactionError If the transaction has been committed or rolled back.
      */
     public function createSavepoint(string $identifier): void;
 
@@ -29,8 +35,6 @@ interface NestableTransactionExecutor extends Executor
      * Rolls back to the savepoint with the given identifier.
      *
      * @param non-empty-string $identifier Savepoint identifier.
-     *
-     * @throws TransactionError If the transaction has been committed or rolled back.
      */
     public function rollbackTo(string $identifier): void;
 
@@ -38,8 +42,6 @@ interface NestableTransactionExecutor extends Executor
      * Releases the savepoint with the given identifier.
      *
      * @param non-empty-string $identifier Savepoint identifier.
-     *
-     * @throws TransactionError If the transaction has been committed or rolled back.
      */
     public function releaseSavepoint(string $identifier): void;
 }
