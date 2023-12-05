@@ -141,9 +141,9 @@ abstract class ConnectionTransaction implements Transaction
         return $this->executor->getLastUsedAt();
     }
 
-    public function isNestedTransaction(): bool
+    public function getSavepointIdentifier(): ?string
     {
-        return false;
+        return null;
     }
 
     /**

@@ -59,7 +59,7 @@ abstract class PooledTransaction implements Transaction
     public function __construct(private readonly Transaction $transaction, \Closure $release)
     {
         $refCount = &$this->refCount;
-        $this->release = static function () use (&$busy, &$refCount, $release): void {
+        $this->release = static function () use (&$refCount, $release): void {
             if (--$refCount === 0) {
                 $release();
             }
@@ -167,9 +167,9 @@ abstract class PooledTransaction implements Transaction
         $this->transaction->onRollback($onRollback);
     }
 
-    public function isNestedTransaction(): bool
+    public function getSavepointIdentifier(): ?string
     {
-        return $this->transaction->isNestedTransaction();
+        return $this->transaction->getSavepointIdentifier();
     }
 
     public function getIsolationLevel(): TransactionIsolation

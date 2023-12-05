@@ -260,9 +260,9 @@ abstract class NestedTransaction implements Transaction
         $this->onRollback->getFuture()->finally($onRollback);
     }
 
-    public function isNestedTransaction(): bool
+    public function getSavepointIdentifier(): string
     {
-        return true;
+        return $this->identifier;
     }
 
     public function getIsolationLevel(): TransactionIsolation
