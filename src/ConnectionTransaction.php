@@ -176,7 +176,7 @@ abstract class ConnectionTransaction implements Transaction
         return $this->active && !$this->executor->isClosed();
     }
 
-    public function getIsolationLevel(): TransactionIsolation
+    public function getIsolation(): TransactionIsolation
     {
         return $this->isolation;
     }

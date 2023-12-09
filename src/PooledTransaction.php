@@ -172,9 +172,9 @@ abstract class PooledTransaction implements Transaction
         return $this->transaction->getSavepointIdentifier();
     }
 
-    public function getIsolationLevel(): TransactionIsolation
+    public function getIsolation(): TransactionIsolation
     {
-        return $this->transaction->getIsolationLevel();
+        return $this->transaction->getIsolation();
     }
 
     public function getLastUsedAt(): int

@@ -141,6 +141,11 @@ abstract class ConnectionPool implements Pool
         $this->close();
     }
 
+    public function getTransactionIsolation(): TransactionIsolation
+    {
+        return $this->transactionIsolation;
+    }
+
     public function setTransactionIsolation(TransactionIsolation $isolation): void
     {
         $this->transactionIsolation = $isolation;
