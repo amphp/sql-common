@@ -233,8 +233,7 @@ abstract class ConnectionTransaction implements Transaction
 
         ++$this->refCount;
         try {
-            $statement = $this->executor->prepare($sql);
-            $result = $statement->execute($params);
+            $result = $this->executor->execute($sql, $params);
         } catch (\Throwable $exception) {
             EventLoop::queue($this->release);
             throw $exception;
