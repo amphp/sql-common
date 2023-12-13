@@ -22,7 +22,7 @@ abstract class CommandResult implements Result, \IteratorAggregate
     ) {
     }
 
-    final public function getIterator(): \Traversable
+    final public function getIterator(): \EmptyIterator
     {
         return new \EmptyIterator;
     }

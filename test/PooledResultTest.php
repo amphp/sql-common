@@ -3,8 +3,8 @@
 namespace Amp\Sql\Common\Test;
 
 use Amp\PHPUnit\AsyncTestCase;
-use Amp\Sql\Common\PooledResult;
-use Amp\Sql\Result;
+use Amp\Sql\Common\Test\Stub\StubPooledResult;
+use Amp\Sql\Common\Test\Stub\StubResult;
 use function Amp\delay;
 
 class PooledResultTest extends AsyncTestCase
@@ -17,33 +17,15 @@ class PooledResultTest extends AsyncTestCase
             $invoked = true;
         };
 
-        $secondResult = $this->createMock(PooledResult::class);
-        $secondResult->method('getIterator')
-            ->willReturn(new \ArrayIterator([['column' => 'value']]));
-        $secondResult->method('getNextResult')
-            ->willReturn(null);
+        $expectedRow = ['column' => 'value'];
 
-        $firstResult = $this->createMock(PooledResult::class);
-        $firstResult->method('getIterator')
-            ->willReturn(new \ArrayIterator([['column' => 'value']]));
-        $firstResult->method('getNextResult')
-            ->willReturn($secondResult);
+        $secondResult = new StubResult([$expectedRow]);
+        $firstResult = new StubResult([$expectedRow], $secondResult);
+        $pooledResult = new StubPooledResult(new StubResult([$expectedRow], $firstResult), $release);
 
-        $result = $this->getMockBuilder(PooledResult::class)
-            ->setConstructorArgs([$firstResult, $release])
-            ->getMockForAbstractClass();
+        $iterator = $pooledResult->getIterator();
 
-        $result->expects(self::once())
-            ->method('newInstanceFrom')
-            ->willReturnCallback(function (Result $result, \Closure $release): PooledResult {
-                return $this->getMockBuilder(PooledResult::class)
-                    ->setConstructorArgs([$result, $release])
-                    ->getMockForAbstractClass();
-            });
-
-        $iterator = $result->getIterator();
-
-        $this->assertSame(['column' => 'value'], $iterator->current());
+        $this->assertSame($expectedRow, $iterator->current());
 
         $this->assertFalse($invoked);
 
@@ -52,15 +34,16 @@ class PooledResultTest extends AsyncTestCase
 
         $this->assertFalse($invoked); // Next result set available.
 
-        $result = $result->getNextResult();
-        $iterator = $result->getIterator();
+        $pooledResult = $pooledResult->getNextResult();
+        $iterator = $pooledResult->getIterator();
 
-        $this->assertSame(['column' => 'value'], $iterator->current());
+        $this->assertSame($expectedRow, $iterator->current());
 
         $iterator->next();
         $this->assertFalse($iterator->valid());
 
-        $result->getNextResult();
+        $pooledResult = $pooledResult->getNextResult();
+        unset($pooledResult); // Manually unset to trigger destructor.
 
         delay(0); // Tick event loop to dispose of result set.
 

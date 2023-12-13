@@ -15,59 +15,80 @@ use function Amp\async;
  */
 abstract class PooledResult implements Result, \IteratorAggregate
 {
-    /** @var null|\Closure():void */
-    private ?\Closure $release;
-
     /** @var Future<TResult|null>|null */
     private ?Future $next = null;
+
+    /** @var \Iterator<int, array<string, TFieldValue>> */
+    private readonly \Iterator $iterator;
+
+    /**
+     * @template Tr of Result
+     *
+     * @param Tr $result
+     * @param \Closure():void $release
+     *
+     * @return Tr
+     */
+    abstract protected static function newInstanceFrom(Result $result, \Closure $release): Result;
 
     /**
      * @param TResult $result Result object created by pooled connection or statement.
      * @param \Closure():void $release Callable to be invoked when the result set is destroyed.
      */
-    public function __construct(private readonly Result $result, \Closure $release)
+    public function __construct(private readonly Result $result, private readonly \Closure $release)
     {
-        $this->release = $release;
-
         if ($this->result instanceof CommandResult) {
-            $this->next = $this->fetchNextResult();
+            $this->iterator = $this->result->getIterator();
+            $this->next = self::fetchNextResult($this->result, $this->release);
+            return;
         }
+
+        $next = &$this->next;
+        $this->iterator = (static function () use (&$next, $result, $release): \Generator {
+            try {
+                yield from $result;
+            } catch (\Throwable $exception) {
+                if (!$next) {
+                    EventLoop::queue($release);
+                }
+                throw $exception;
+            }
+
+            $next ??= self::fetchNextResult($result, $release);
+        })();
     }
 
     public function __destruct()
     {
-        $this->dispose();
+        EventLoop::queue(self::dispose(...), $this->iterator);
     }
 
-    /**
-     * @param TResult $result
-     * @param \Closure():void $release
-     *
-     * @return TResult
-     */
-    abstract protected function newInstanceFrom(Result $result, \Closure $release): Result;
-
-    private function dispose(): void
+    private static function dispose(\Iterator $iterator): void
     {
-        if ($this->release !== null) {
-            EventLoop::queue($this->release);
-            $this->release = null;
+        try {
+            // Discard remaining rows in the result set.
+            while ($iterator->valid()) {
+                $iterator->next();
+            }
+        } catch (\Throwable) {
+            // Ignore errors while discarding result.
         }
     }
 
     public function getIterator(): \Traversable
     {
-        try {
-            yield from $this->result;
-        } catch (\Throwable $exception) {
-            $this->dispose();
-            throw $exception;
-        }
+        return $this->iterator;
     }
 
     public function fetchRow(): ?array
     {
-        return $this->result->fetchRow();
+        if (!$this->iterator->valid()) {
+            return null;
+        }
+
+        $current = $this->iterator->current();
+        $this->iterator->next();
+        return $current;
     }
 
     public function getRowCount(): ?int
@@ -85,24 +106,30 @@ abstract class PooledResult implements Result, \IteratorAggregate
      */
     public function getNextResult(): ?Result
     {
-        return ($this->next ??= $this->fetchNextResult())->await();
+        $this->next ??= self::fetchNextResult($this->result, $this->release);
+        return $this->next->await();
     }
 
-    private function fetchNextResult(): Future
+    /**
+     * @template Tr of Result
+     *
+     * @param Tr $result
+     * @param \Closure():void $release
+     *
+     * @return Future<Tr|null>
+     */
+    private static function fetchNextResult(Result $result, \Closure $release): Future
     {
-        return async(function (): ?Result {
-            /** @var TResult|null $result */
-            $result = $this->result->getNextResult();
+        return async(static function () use ($result, $release): ?Result {
+            /** @var Tr|null $result */
+            $result = $result->getNextResult();
 
-            if ($result === null || $this->release === null) {
-                $this->dispose();
+            if ($result === null) {
+                EventLoop::queue($release);
                 return null;
             }
 
-            $result = $this->newInstanceFrom($result, $this->release);
-            $this->release = null;
-
-            return $result;
+            return static::newInstanceFrom($result, $release);
         });
     }
 }

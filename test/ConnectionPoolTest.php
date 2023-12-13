@@ -5,7 +5,7 @@ namespace Amp\Sql\Common\Test;
 use Amp\Future;
 use Amp\PHPUnit\AsyncTestCase;
 use Amp\Sql\Common\ConnectionPool;
-use Amp\Sql\Common\PooledResult;
+use Amp\Sql\Common\Test\Stub\StubPooledResult;
 use Amp\Sql\Connection;
 use Amp\Sql\Result;
 use Amp\Sql\SqlConfig;
@@ -67,14 +67,7 @@ class ConnectionPoolTest extends AsyncTestCase
             ->getMockForAbstractClass();
 
         $pool->method('createResult')
-            ->willReturnCallback(function (Result $result, \Closure $release): PooledResult {
-                return new class($result, $release) extends PooledResult {
-                    protected function newInstanceFrom(Result $result, \Closure $release): PooledResult
-                    {
-                        return new self($result, $release);
-                    }
-                };
-            });
+            ->willReturnCallback(fn (Result $result, \Closure $release) => new StubPooledResult($result, $release));
 
         return $pool;
     }
