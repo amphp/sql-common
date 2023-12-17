@@ -3,6 +3,8 @@
 namespace Amp\Sql\Common;
 
 use Amp\DeferredFuture;
+use Amp\ForbidCloning;
+use Amp\ForbidSerialization;
 use Amp\Sql\Pool;
 use Amp\Sql\Result;
 use Amp\Sql\SqlConfig;
@@ -20,6 +22,9 @@ use Revolt\EventLoop;
  */
 abstract class StatementPool implements Statement
 {
+    use ForbidCloning;
+    use ForbidSerialization;
+
     private readonly Pool $pool;
 
     /** @var \SplQueue<TStatement> */

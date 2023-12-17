@@ -2,6 +2,8 @@
 
 namespace Amp\Sql\Common;
 
+use Amp\ForbidCloning;
+use Amp\ForbidSerialization;
 use Amp\Future;
 use Amp\Sql\Result;
 use Revolt\EventLoop;
@@ -15,6 +17,9 @@ use function Amp\async;
  */
 abstract class PooledResult implements Result, \IteratorAggregate
 {
+    use ForbidCloning;
+    use ForbidSerialization;
+
     /** @var Future<TResult|null>|null */
     private ?Future $next = null;
 

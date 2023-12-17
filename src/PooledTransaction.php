@@ -2,6 +2,8 @@
 
 namespace Amp\Sql\Common;
 
+use Amp\ForbidCloning;
+use Amp\ForbidSerialization;
 use Amp\Sql\Result;
 use Amp\Sql\Statement;
 use Amp\Sql\Transaction;
@@ -17,6 +19,9 @@ use Revolt\EventLoop;
  */
 abstract class PooledTransaction implements Transaction
 {
+    use ForbidCloning;
+    use ForbidSerialization;
+
     /** @var \Closure():void */
     private readonly \Closure $release;
 

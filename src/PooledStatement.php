@@ -2,6 +2,8 @@
 
 namespace Amp\Sql\Common;
 
+use Amp\ForbidCloning;
+use Amp\ForbidSerialization;
 use Amp\Sql\Result;
 use Amp\Sql\SqlException;
 use Amp\Sql\Statement;
@@ -15,6 +17,9 @@ use Revolt\EventLoop;
  */
 abstract class PooledStatement implements Statement
 {
+    use ForbidCloning;
+    use ForbidSerialization;
+
     /** @var null|\Closure():void */
     private ?\Closure $release;
 

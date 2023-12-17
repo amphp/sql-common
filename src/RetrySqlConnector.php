@@ -4,6 +4,8 @@ namespace Amp\Sql\Common;
 
 use Amp\Cancellation;
 use Amp\CompositeException;
+use Amp\ForbidCloning;
+use Amp\ForbidSerialization;
 use Amp\Sql\Connection;
 use Amp\Sql\ConnectionException;
 use Amp\Sql\SqlConfig;
@@ -16,6 +18,9 @@ use Amp\Sql\SqlConnector;
  */
 final class RetrySqlConnector implements SqlConnector
 {
+    use ForbidCloning;
+    use ForbidSerialization;
+
     /**
      * @param SqlConnector<TConfig, TConnection> $connector
      */

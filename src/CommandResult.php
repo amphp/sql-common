@@ -2,6 +2,8 @@
 
 namespace Amp\Sql\Common;
 
+use Amp\ForbidCloning;
+use Amp\ForbidSerialization;
 use Amp\Future;
 use Amp\Sql\Result;
 
@@ -13,6 +15,9 @@ use Amp\Sql\Result;
  */
 abstract class CommandResult implements Result, \IteratorAggregate
 {
+    use ForbidCloning;
+    use ForbidSerialization;
+
     /**
      * @param Future<TResult|null> $nextResult
      */

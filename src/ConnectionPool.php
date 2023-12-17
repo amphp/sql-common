@@ -3,6 +3,8 @@
 namespace Amp\Sql\Common;
 
 use Amp\DeferredFuture;
+use Amp\ForbidCloning;
+use Amp\ForbidSerialization;
 use Amp\Future;
 use Amp\Sql\Connection;
 use Amp\Sql\Link;
@@ -29,6 +31,9 @@ use function Amp\async;
  */
 abstract class ConnectionPool implements Pool
 {
+    use ForbidCloning;
+    use ForbidSerialization;
+
     public const DEFAULT_MAX_CONNECTIONS = 100;
     public const DEFAULT_IDLE_TIMEOUT = 60;
 
