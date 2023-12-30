@@ -51,7 +51,11 @@ abstract class PooledResult implements Result, \IteratorAggregate
         $next = &$this->next;
         $this->iterator = (static function () use (&$next, $result, $release): \Generator {
             try {
-                yield from $result;
+                // Using foreach loop instead of yield from to avoid PHP bug,
+                // see https://github.com/amphp/mysql/issues/133
+                foreach ($result as $row) {
+                    yield $row;
+                }
             } catch (\Throwable $exception) {
                 if (!$next) {
                     EventLoop::queue($release);
