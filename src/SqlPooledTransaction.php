@@ -4,20 +4,20 @@ namespace Amp\Sql\Common;
 
 use Amp\ForbidCloning;
 use Amp\ForbidSerialization;
-use Amp\Sql\Result;
-use Amp\Sql\Statement;
-use Amp\Sql\Transaction;
-use Amp\Sql\TransactionIsolation;
+use Amp\Sql\SqlResult;
+use Amp\Sql\SqlStatement;
+use Amp\Sql\SqlTransaction;
+use Amp\Sql\SqlTransactionIsolation;
 use Revolt\EventLoop;
 
 /**
- * @template TResult of Result
- * @template TStatement of Statement
- * @template TTransaction of Transaction
+ * @template TResult of SqlResult
+ * @template TStatement of SqlStatement
+ * @template TTransaction of SqlTransaction
  *
- * @implements Transaction<TResult, TStatement, TTransaction>
+ * @implements SqlTransaction<TResult, TStatement, TTransaction>
  */
-abstract class PooledTransaction implements Transaction
+abstract class SqlPooledTransaction implements SqlTransaction
 {
     use ForbidCloning;
     use ForbidSerialization;
@@ -36,7 +36,7 @@ abstract class PooledTransaction implements Transaction
      *
      * @return TStatement
      */
-    abstract protected function createStatement(Statement $statement, \Closure $release): Statement;
+    abstract protected function createStatement(SqlStatement $statement, \Closure $release): SqlStatement;
 
     /**
      * Creates a Result of the appropriate type using the Result object returned by the Link object and the
@@ -47,7 +47,7 @@ abstract class PooledTransaction implements Transaction
      *
      * @return TResult
      */
-    abstract protected function createResult(Result $result, \Closure $release): Result;
+    abstract protected function createResult(SqlResult $result, \Closure $release): SqlResult;
 
     /**
      * @param TTransaction $transaction
@@ -55,13 +55,13 @@ abstract class PooledTransaction implements Transaction
      *
      * @return TTransaction
      */
-    abstract protected function createTransaction(Transaction $transaction, \Closure $release): Transaction;
+    abstract protected function createTransaction(SqlTransaction $transaction, \Closure $release): SqlTransaction;
 
     /**
      * @param TTransaction $transaction Transaction object created by pooled connection.
      * @param \Closure():void $release Callable to be invoked when the transaction completes or is destroyed.
      */
-    public function __construct(private readonly Transaction $transaction, \Closure $release)
+    public function __construct(private readonly SqlTransaction $transaction, \Closure $release)
     {
         $refCount = &$this->refCount;
         $this->release = static function () use (&$refCount, $release): void {
@@ -77,7 +77,7 @@ abstract class PooledTransaction implements Transaction
         }
     }
 
-    public function query(string $sql): Result
+    public function query(string $sql): SqlResult
     {
         ++$this->refCount;
 
@@ -90,7 +90,7 @@ abstract class PooledTransaction implements Transaction
         }
     }
 
-    public function prepare(string $sql): Statement
+    public function prepare(string $sql): SqlStatement
     {
         ++$this->refCount;
 
@@ -103,7 +103,7 @@ abstract class PooledTransaction implements Transaction
         }
     }
 
-    public function execute(string $sql, array $params = []): Result
+    public function execute(string $sql, array $params = []): SqlResult
     {
         ++$this->refCount;
 
@@ -116,7 +116,7 @@ abstract class PooledTransaction implements Transaction
         }
     }
 
-    public function beginTransaction(): Transaction
+    public function beginTransaction(): SqlTransaction
     {
         ++$this->refCount;
 
@@ -177,7 +177,7 @@ abstract class PooledTransaction implements Transaction
         return $this->transaction->getSavepointIdentifier();
     }
 
-    public function getIsolation(): TransactionIsolation
+    public function getIsolation(): SqlTransactionIsolation
     {
         return $this->transaction->getIsolation();
     }

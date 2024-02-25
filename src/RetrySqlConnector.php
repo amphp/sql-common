@@ -6,14 +6,14 @@ use Amp\Cancellation;
 use Amp\CompositeException;
 use Amp\ForbidCloning;
 use Amp\ForbidSerialization;
-use Amp\Sql\Connection;
-use Amp\Sql\ConnectionException;
 use Amp\Sql\SqlConfig;
+use Amp\Sql\SqlConnection;
+use Amp\Sql\SqlConnectionException;
 use Amp\Sql\SqlConnector;
 
 /**
  * @template TConfig of SqlConfig
- * @template TConnection of Connection
+ * @template TConnection of SqlConnection
  * @implements SqlConnector<TConfig, TConnection>
  */
 final class RetrySqlConnector implements SqlConnector
@@ -33,7 +33,7 @@ final class RetrySqlConnector implements SqlConnector
         }
     }
 
-    public function connect(SqlConfig $config, ?Cancellation $cancellation = null): Connection
+    public function connect(SqlConfig $config, ?Cancellation $cancellation = null): SqlConnection
     {
         $tries = 0;
         $exceptions = [];
@@ -41,14 +41,14 @@ final class RetrySqlConnector implements SqlConnector
         do {
             try {
                 return $this->connector->connect($config, $cancellation);
-            } catch (ConnectionException $exception) {
+            } catch (SqlConnectionException $exception) {
                 $exceptions[] = $exception;
             }
         } while (++$tries < $this->maxTries);
 
         $name = $config->getHost() . ':' . $config->getPort();
 
-        throw new ConnectionException(
+        throw new SqlConnectionException(
             "Could not connect to database server at {$name} after {$tries} tries",
             0,
             new CompositeException($exceptions)

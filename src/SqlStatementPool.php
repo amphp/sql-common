@@ -5,27 +5,27 @@ namespace Amp\Sql\Common;
 use Amp\DeferredFuture;
 use Amp\ForbidCloning;
 use Amp\ForbidSerialization;
-use Amp\Sql\Pool;
-use Amp\Sql\Result;
 use Amp\Sql\SqlConfig;
+use Amp\Sql\SqlConnectionPool;
 use Amp\Sql\SqlException;
-use Amp\Sql\Statement;
-use Amp\Sql\Transaction;
+use Amp\Sql\SqlResult;
+use Amp\Sql\SqlStatement;
+use Amp\Sql\SqlTransaction;
 use Revolt\EventLoop;
 
 /**
  * @template TConfig of SqlConfig
- * @template TResult of Result
- * @template TStatement of Statement<TResult>
- * @template TTransaction of Transaction
- * @implements Statement<TResult>
+ * @template TResult of SqlResult
+ * @template TStatement of SqlStatement<TResult>
+ * @template TTransaction of SqlTransaction
+ * @implements SqlStatement<TResult>
  */
-abstract class StatementPool implements Statement
+abstract class SqlStatementPool implements SqlStatement
 {
     use ForbidCloning;
     use ForbidSerialization;
 
-    private readonly Pool $pool;
+    private readonly SqlConnectionPool $pool;
 
     /** @var \SplQueue<TStatement> */
     private readonly \SplQueue $statements;
@@ -45,14 +45,14 @@ abstract class StatementPool implements Statement
      *
      * @return TResult
      */
-    abstract protected function createResult(Result $result, \Closure $release): Result;
+    abstract protected function createResult(SqlResult $result, \Closure $release): SqlResult;
 
     /**
-     * @param Pool<TConfig, TResult, TStatement, TTransaction> $pool Pool used to prepare statements for execution.
+     * @param SqlConnectionPool<TConfig, TResult, TStatement, TTransaction> $pool Pool used to prepare statements for execution.
      * @param string $sql SQL statement to prepare
      * @param \Closure(string):TStatement $prepare Callable that returns a new prepared statement.
      */
-    public function __construct(Pool $pool, string $sql, \Closure $prepare)
+    public function __construct(SqlConnectionPool $pool, string $sql, \Closure $prepare)
     {
         $this->lastUsedAt = \time();
         $this->statements = $statements = new \SplQueue;
@@ -67,7 +67,7 @@ abstract class StatementPool implements Statement
 
             while (!$statements->isEmpty()) {
                 $statement = $statements->bottom();
-                \assert($statement instanceof Statement);
+                \assert($statement instanceof SqlStatement);
 
                 if ($statement->getLastUsedAt() + $idleTimeout > $now) {
                     return;
@@ -93,7 +93,7 @@ abstract class StatementPool implements Statement
      *
      * @return TResult
      */
-    public function execute(array $params = []): Result
+    public function execute(array $params = []): SqlResult
     {
         if ($this->isClosed()) {
             throw new SqlException('The statement has been closed or the connection pool has been closed');
@@ -119,7 +119,7 @@ abstract class StatementPool implements Statement
      *
      * @param TStatement $statement
      */
-    protected function push(Statement $statement): void
+    protected function push(SqlStatement $statement): void
     {
         $maxConnections = $this->pool->getConnectionLimit();
 
@@ -137,11 +137,11 @@ abstract class StatementPool implements Statement
     /**
      * @return TStatement
      */
-    protected function pop(): Statement
+    protected function pop(): SqlStatement
     {
         while (!$this->statements->isEmpty()) {
             $statement = $this->statements->dequeue();
-            \assert($statement instanceof Statement);
+            \assert($statement instanceof SqlStatement);
 
             if (!$statement->isClosed()) {
                 return $statement;

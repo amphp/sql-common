@@ -4,23 +4,23 @@ namespace Amp\Sql\Common\Test;
 
 use Amp\Future;
 use Amp\PHPUnit\AsyncTestCase;
-use Amp\Sql\Common\ConnectionPool;
-use Amp\Sql\Common\Test\Stub\StubPooledResult;
-use Amp\Sql\Connection;
-use Amp\Sql\Result;
+use Amp\Sql\Common\SqlCommonConnectionPool;
+use Amp\Sql\Common\Test\Stub\StubSqlPooledResult;
 use Amp\Sql\SqlConfig;
+use Amp\Sql\SqlConnection;
 use Amp\Sql\SqlConnector;
+use Amp\Sql\SqlResult;
 use function Amp\async;
 use function Amp\delay;
 
-class ConnectionPoolTest extends AsyncTestCase
+class SqlCommonConnectionPoolTest extends AsyncTestCase
 {
     public function testInvalidMaxConnections()
     {
         $this->expectException(\Error::class);
         $this->expectExceptionMessage('Pool must contain at least one connection');
 
-        $this->getMockBuilder(ConnectionPool::class)
+        $this->getMockBuilder(SqlCommonConnectionPool::class)
             ->setConstructorArgs([
                 $this->createMock(SqlConfig::class),
                 $this->createMock(SqlConnector::class),
@@ -35,8 +35,8 @@ class ConnectionPoolTest extends AsyncTestCase
 
         $connector = $this->createMock(SqlConnector::class);
         $connector->method('connect')
-            ->willReturnCallback(function () use ($now): Connection {
-                $connection = $this->createMock(Connection::class);
+            ->willReturnCallback(function () use ($now): SqlConnection {
+                $connection = $this->createMock(SqlConnection::class);
                 $connection->method('getLastUsedAt')
                     ->willReturn($now);
 
@@ -46,7 +46,7 @@ class ConnectionPoolTest extends AsyncTestCase
                 $connection->method('query')
                     ->willReturnCallback(function () {
                         delay(0.1);
-                        return $this->createMock(Result::class);
+                        return $this->createMock(SqlResult::class);
                     });
 
                 return $connection;
@@ -55,9 +55,9 @@ class ConnectionPoolTest extends AsyncTestCase
         return $connector;
     }
 
-    private function createPool(SqlConnector $connector, int $maxConnections = 100, int $idleTimeout = 10): ConnectionPool
+    private function createPool(SqlConnector $connector, int $maxConnections = 100, int $idleTimeout = 10): SqlCommonConnectionPool
     {
-        $pool = $this->getMockBuilder(ConnectionPool::class)
+        $pool = $this->getMockBuilder(SqlCommonConnectionPool::class)
             ->setConstructorArgs([
                 $this->createMock(SqlConfig::class),
                 $connector,
@@ -67,7 +67,7 @@ class ConnectionPoolTest extends AsyncTestCase
             ->getMockForAbstractClass();
 
         $pool->method('createResult')
-            ->willReturnCallback(fn (Result $result, \Closure $release) => new StubPooledResult($result, $release));
+            ->willReturnCallback(fn (SqlResult $result, \Closure $release) => new StubSqlPooledResult($result, $release));
 
         return $pool;
     }

@@ -2,17 +2,17 @@
 
 namespace Amp\Sql\Common;
 
-use Amp\Sql\Executor;
-use Amp\Sql\Result;
-use Amp\Sql\Statement;
+use Amp\Sql\SqlExecutor;
+use Amp\Sql\SqlResult;
+use Amp\Sql\SqlStatement;
 
 /**
- * @template TResult of Result
- * @template TStatement of Statement<TResult>
+ * @template TResult of SqlResult
+ * @template TStatement of SqlStatement<TResult>
  *
- * @extends Executor<TResult, TStatement>
+ * @extends SqlExecutor<TResult, TStatement>
  */
-interface NestableTransactionExecutor extends Executor
+interface SqlNestableTransactionExecutor extends SqlExecutor
 {
     /**
      * Commits the current transaction.

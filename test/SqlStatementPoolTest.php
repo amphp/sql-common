@@ -3,22 +3,22 @@
 namespace Amp\Sql\Common\Test;
 
 use Amp\PHPUnit\AsyncTestCase;
-use Amp\Sql\Common\StatementPool;
-use Amp\Sql\Pool;
-use Amp\Sql\Statement;
+use Amp\Sql\Common\SqlStatementPool;
+use Amp\Sql\SqlConnectionPool;
+use Amp\Sql\SqlStatement;
 use function Amp\delay;
 
-class StatementPoolTest extends AsyncTestCase
+class SqlStatementPoolTest extends AsyncTestCase
 {
     public function testActiveStatementsRemainAfterTimeout()
     {
-        $pool = $this->createMock(Pool::class);
+        $pool = $this->createMock(SqlConnectionPool::class);
         $pool->method('isClosed')
             ->willReturn(false);
         $pool->method('getIdleTimeout')
             ->willReturn(60);
 
-        $statement = $this->createMock(Statement::class);
+        $statement = $this->createMock(SqlStatement::class);
         $statement->method('isClosed')
             ->willReturn(false);
         $statement->method('getQuery')
@@ -28,7 +28,7 @@ class StatementPoolTest extends AsyncTestCase
         $statement->expects($this->once())
             ->method('execute');
 
-        $statementPool = $this->getMockBuilder(StatementPool::class)
+        $statementPool = $this->getMockBuilder(SqlStatementPool::class)
             ->setConstructorArgs([$pool, 'SELECT 1', $this->createCallback(1, fn () => $statement)])
             ->getMockForAbstractClass();
 
@@ -45,14 +45,14 @@ class StatementPoolTest extends AsyncTestCase
 
     public function testIdleStatementsRemovedAfterTimeout()
     {
-        $pool = $this->createMock(Pool::class);
+        $pool = $this->createMock(SqlConnectionPool::class);
         $pool->method('isClosed')
             ->willReturn(false);
         $pool->method('getIdleTimeout')
             ->willReturn(1);
 
-        $createStatement = function (): Statement {
-            $statement = $this->createMock(Statement::class);
+        $createStatement = function (): SqlStatement {
+            $statement = $this->createMock(SqlStatement::class);
             $statement->method('isClosed')
                 ->willReturn(false);
             $statement->method('getQuery')
@@ -65,7 +65,7 @@ class StatementPoolTest extends AsyncTestCase
             return $statement;
         };
 
-        $statementPool = $this->getMockBuilder(StatementPool::class)
+        $statementPool = $this->getMockBuilder(SqlStatementPool::class)
             ->setConstructorArgs([$pool, 'SELECT 1', $this->createCallback(2, $createStatement)])
             ->getMockForAbstractClass();
 

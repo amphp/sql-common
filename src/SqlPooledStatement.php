@@ -4,18 +4,18 @@ namespace Amp\Sql\Common;
 
 use Amp\ForbidCloning;
 use Amp\ForbidSerialization;
-use Amp\Sql\Result;
 use Amp\Sql\SqlException;
-use Amp\Sql\Statement;
+use Amp\Sql\SqlResult;
+use Amp\Sql\SqlStatement;
 use Revolt\EventLoop;
 
 /**
- * @template TResult of Result
- * @template TStatement of Statement<TResult>
+ * @template TResult of SqlResult
+ * @template TStatement of SqlStatement<TResult>
  *
- * @implements Statement<TResult>
+ * @implements SqlStatement<TResult>
  */
-abstract class PooledStatement implements Statement
+abstract class SqlPooledStatement implements SqlStatement
 {
     use ForbidCloning;
     use ForbidSerialization;
@@ -34,7 +34,7 @@ abstract class PooledStatement implements Statement
      *
      * @return TResult
      */
-    abstract protected function createResult(Result $result, \Closure $release): Result;
+    abstract protected function createResult(SqlResult $result, \Closure $release): SqlResult;
 
     /**
      * @param TStatement $statement Statement object created by pooled connection.
@@ -44,7 +44,7 @@ abstract class PooledStatement implements Statement
      *     wait if the parent resource is busy with another action (e.g., a nested transaction).
      */
     public function __construct(
-        private readonly Statement $statement,
+        private readonly SqlStatement $statement,
         \Closure $release,
         private readonly ?\Closure $awaitBusyResource = null,
     ) {
@@ -64,7 +64,7 @@ abstract class PooledStatement implements Statement
     /**
      * @return TResult
      */
-    public function execute(array $params = []): Result
+    public function execute(array $params = []): SqlResult
     {
         if (!$this->release) {
             throw new SqlException('The statement has been closed');

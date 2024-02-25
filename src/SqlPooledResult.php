@@ -5,17 +5,17 @@ namespace Amp\Sql\Common;
 use Amp\ForbidCloning;
 use Amp\ForbidSerialization;
 use Amp\Future;
-use Amp\Sql\Result;
+use Amp\Sql\SqlResult;
 use Revolt\EventLoop;
 use function Amp\async;
 
 /**
  * @template TFieldValue
- * @template TResult of Result
- * @implements Result<TFieldValue>
+ * @template TResult of SqlResult
+ * @implements SqlResult<TFieldValue>
  * @implements \IteratorAggregate<int, array<string, TFieldValue>>
  */
-abstract class PooledResult implements Result, \IteratorAggregate
+abstract class SqlPooledResult implements SqlResult, \IteratorAggregate
 {
     use ForbidCloning;
     use ForbidSerialization;
@@ -27,22 +27,22 @@ abstract class PooledResult implements Result, \IteratorAggregate
     private readonly \Iterator $iterator;
 
     /**
-     * @template Tr of Result
+     * @template Tr of SqlResult
      *
      * @param Tr $result
      * @param \Closure():void $release
      *
      * @return Tr
      */
-    abstract protected static function newInstanceFrom(Result $result, \Closure $release): Result;
+    abstract protected static function newInstanceFrom(SqlResult $result, \Closure $release): SqlResult;
 
     /**
      * @param TResult $result Result object created by pooled connection or statement.
      * @param \Closure():void $release Callable to be invoked when the result set is destroyed.
      */
-    public function __construct(private readonly Result $result, private readonly \Closure $release)
+    public function __construct(private readonly SqlResult $result, private readonly \Closure $release)
     {
-        if ($this->result instanceof CommandResult) {
+        if ($this->result instanceof SqlCommandResult) {
             $this->iterator = $this->result->getIterator();
             $this->next = self::fetchNextResult($this->result, $this->release);
             return;
@@ -113,23 +113,23 @@ abstract class PooledResult implements Result, \IteratorAggregate
     /**
      * @return TResult|null
      */
-    public function getNextResult(): ?Result
+    public function getNextResult(): ?SqlResult
     {
         $this->next ??= self::fetchNextResult($this->result, $this->release);
         return $this->next->await();
     }
 
     /**
-     * @template Tr of Result
+     * @template Tr of SqlResult
      *
      * @param Tr $result
      * @param \Closure():void $release
      *
      * @return Future<Tr|null>
      */
-    private static function fetchNextResult(Result $result, \Closure $release): Future
+    private static function fetchNextResult(SqlResult $result, \Closure $release): Future
     {
-        return async(static function () use ($result, $release): ?Result {
+        return async(static function () use ($result, $release): ?SqlResult {
             /** @var Tr|null $result */
             $result = $result->getNextResult();
 

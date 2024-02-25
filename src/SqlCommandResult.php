@@ -5,15 +5,15 @@ namespace Amp\Sql\Common;
 use Amp\ForbidCloning;
 use Amp\ForbidSerialization;
 use Amp\Future;
-use Amp\Sql\Result;
+use Amp\Sql\SqlResult;
 
 /**
  * @template TFieldValue
- * @template TResult of Result
- * @implements Result<TFieldValue>
+ * @template TResult of SqlResult
+ * @implements SqlResult<TFieldValue>
  * @implements \IteratorAggregate<int, never>
  */
-abstract class CommandResult implements Result, \IteratorAggregate
+abstract class SqlCommandResult implements SqlResult, \IteratorAggregate
 {
     use ForbidCloning;
     use ForbidSerialization;
@@ -43,7 +43,7 @@ abstract class CommandResult implements Result, \IteratorAggregate
     /**
      * @return TResult|null
      */
-    public function getNextResult(): ?Result
+    public function getNextResult(): ?SqlResult
     {
         return $this->nextResult->await();
     }

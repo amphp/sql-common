@@ -2,15 +2,15 @@
 
 namespace Amp\Sql\Common\Test\Stub;
 
-use Amp\Sql\Result;
+use Amp\Sql\SqlResult;
 
-final class StubResult implements Result, \IteratorAggregate
+final class StubSqlResult implements SqlResult, \IteratorAggregate
 {
     private readonly array $rows;
 
     private int $current = 0;
 
-    public function __construct(array $rows, private readonly ?Result $next = null)
+    public function __construct(array $rows, private readonly ?SqlResult $next = null)
     {
         $this->rows = \array_values($rows);
     }
@@ -25,7 +25,7 @@ final class StubResult implements Result, \IteratorAggregate
         return $this->rows[$this->current++] ?? null;
     }
 
-    public function getNextResult(): ?Result
+    public function getNextResult(): ?SqlResult
     {
         return $this->next;
     }

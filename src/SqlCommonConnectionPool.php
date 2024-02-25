@@ -6,30 +6,30 @@ use Amp\DeferredFuture;
 use Amp\ForbidCloning;
 use Amp\ForbidSerialization;
 use Amp\Future;
-use Amp\Sql\Connection;
-use Amp\Sql\Link;
-use Amp\Sql\Pool;
-use Amp\Sql\Result;
 use Amp\Sql\SqlConfig;
+use Amp\Sql\SqlConnection;
+use Amp\Sql\SqlConnectionPool;
 use Amp\Sql\SqlConnector;
 use Amp\Sql\SqlException;
-use Amp\Sql\Statement;
-use Amp\Sql\Transaction;
-use Amp\Sql\TransactionIsolation;
-use Amp\Sql\TransactionIsolationLevel;
+use Amp\Sql\SqlLink;
+use Amp\Sql\SqlResult;
+use Amp\Sql\SqlStatement;
+use Amp\Sql\SqlTransaction;
+use Amp\Sql\SqlTransactionIsolation;
+use Amp\Sql\SqlTransactionIsolationLevel;
 use Revolt\EventLoop;
 use function Amp\async;
 
 /**
  * @template TConfig of SqlConfig
- * @template TResult of Result
- * @template TStatement of Statement<TResult>
- * @template TTransaction of Transaction
- * @template TConnection of Connection<TConfig, TResult, TStatement, TTransaction>
+ * @template TResult of SqlResult
+ * @template TStatement of SqlStatement<TResult>
+ * @template TTransaction of SqlTransaction
+ * @template TConnection of SqlConnection<TConfig, TResult, TStatement, TTransaction>
  *
- * @implements Pool<TConfig, TResult, TStatement, TTransaction>
+ * @implements SqlConnectionPool<TConfig, TResult, TStatement, TTransaction>
  */
-abstract class ConnectionPool implements Pool
+abstract class SqlCommonConnectionPool implements SqlConnectionPool
 {
     use ForbidCloning;
     use ForbidSerialization;
@@ -60,7 +60,7 @@ abstract class ConnectionPool implements Pool
      *
      * @return TStatement
      */
-    abstract protected function createStatement(Statement $statement, \Closure $release): Statement;
+    abstract protected function createStatement(SqlStatement $statement, \Closure $release): SqlStatement;
 
     /**
      * Creates a Result of the appropriate type using the Result object returned by the Link object and the
@@ -70,14 +70,14 @@ abstract class ConnectionPool implements Pool
      * @param \Closure():void $release
      * @return TResult
      */
-    abstract protected function createResult(Result $result, \Closure $release): Result;
+    abstract protected function createResult(SqlResult $result, \Closure $release): SqlResult;
 
     /**
      * @param \Closure(string):TStatement $prepare
      *
      * @return TStatement
      */
-    abstract protected function createStatementPool(string $sql, \Closure $prepare): Statement;
+    abstract protected function createStatementPool(string $sql, \Closure $prepare): SqlStatement;
 
     /**
      * Creates a Transaction of the appropriate type using the Transaction object returned by the Link object and the
@@ -88,7 +88,7 @@ abstract class ConnectionPool implements Pool
      *
      * @return TTransaction
      */
-    abstract protected function createTransaction(Transaction $transaction, \Closure $release): Transaction;
+    abstract protected function createTransaction(SqlTransaction $transaction, \Closure $release): SqlTransaction;
 
     /**
      * @param TConfig $config
@@ -101,7 +101,7 @@ abstract class ConnectionPool implements Pool
         private readonly SqlConnector $connector,
         private readonly int $maxConnections = self::DEFAULT_MAX_CONNECTIONS,
         private int $idleTimeout = self::DEFAULT_IDLE_TIMEOUT,
-        private TransactionIsolation $transactionIsolation = TransactionIsolationLevel::Committed,
+        private SqlTransactionIsolation $transactionIsolation = SqlTransactionIsolationLevel::Committed,
     ) {
         /** @psalm-suppress TypeDoesNotContainType */
         if ($this->idleTimeout < 1) {
@@ -123,7 +123,7 @@ abstract class ConnectionPool implements Pool
             $now = \time();
             while (!$idle->isEmpty()) {
                 $connection = $idle->bottom();
-                \assert($connection instanceof Link);
+                \assert($connection instanceof SqlLink);
 
                 if ($connection->getLastUsedAt() + $idleTimeout > $now) {
                     return;
@@ -146,12 +146,12 @@ abstract class ConnectionPool implements Pool
         $this->close();
     }
 
-    public function getTransactionIsolation(): TransactionIsolation
+    public function getTransactionIsolation(): SqlTransactionIsolation
     {
         return $this->transactionIsolation;
     }
 
-    public function setTransactionIsolation(TransactionIsolation $isolation): void
+    public function setTransactionIsolation(SqlTransactionIsolation $isolation): void
     {
         $this->transactionIsolation = $isolation;
     }
@@ -173,7 +173,7 @@ abstract class ConnectionPool implements Pool
         $time = 0;
 
         foreach ($this->connections as $connection) {
-            \assert($connection instanceof Link);
+            \assert($connection instanceof SqlLink);
             if (($lastUsedAt = $connection->getLastUsedAt()) > $time) {
                 $time = $lastUsedAt;
             }
@@ -218,7 +218,7 @@ abstract class ConnectionPool implements Pool
      *
      * @throws SqlException
      */
-    public function extractConnection(): Connection
+    public function extractConnection(): SqlConnection
     {
         $connection = $this->pop();
         $this->connections->detach($connection);
@@ -246,7 +246,7 @@ abstract class ConnectionPool implements Pool
      * @throws SqlException If creating a new connection fails.
      * @throws \Error If the pool has been closed.
      */
-    protected function pop(): Connection
+    protected function pop(): SqlConnection
     {
         if ($this->isClosed()) {
             throw new \Error("The pool has been closed");
@@ -266,11 +266,11 @@ abstract class ConnectionPool implements Pool
                             $this->future = async(fn () => $this->connector->connect($this->config))
                         )->await();
                         /** @psalm-suppress DocblockTypeContradiction */
-                        if (!$connection instanceof Link) {
+                        if (!$connection instanceof SqlLink) {
                             throw new \Error(\sprintf(
                                 "%s::connect() must resolve to an instance of %s",
                                 \get_class($this->connector),
-                                Link::class
+                                SqlLink::class
                             ));
                         }
                     } finally {
@@ -298,7 +298,7 @@ abstract class ConnectionPool implements Pool
             }
 
             $connection = $this->idle->dequeue();
-            \assert($connection instanceof Link);
+            \assert($connection instanceof SqlLink);
 
             if (!$connection->isClosed()) {
                 return $connection;
@@ -315,7 +315,7 @@ abstract class ConnectionPool implements Pool
      *
      * @throws \Error If the connection is not part of this pool.
      */
-    protected function push(Connection $connection): void
+    protected function push(SqlConnection $connection): void
     {
         \assert(isset($this->connections[$connection]), 'Connection is not part of this pool');
 
@@ -329,7 +329,7 @@ abstract class ConnectionPool implements Pool
         $this->awaitingConnection = null;
     }
 
-    public function query(string $sql): Result
+    public function query(string $sql): SqlResult
     {
         $connection = $this->pop();
 
@@ -343,7 +343,7 @@ abstract class ConnectionPool implements Pool
         return $this->createResult($result, fn () => $this->push($connection));
     }
 
-    public function execute(string $sql, array $params = []): Result
+    public function execute(string $sql, array $params = []): SqlResult
     {
         $connection = $this->pop();
 
@@ -360,7 +360,7 @@ abstract class ConnectionPool implements Pool
     /**
      * Prepared statements returned by this method will stay alive as long as the pool remains open.
      */
-    public function prepare(string $sql): Statement
+    public function prepare(string $sql): SqlStatement
     {
         /** @psalm-suppress InvalidArgument Psalm is not properly detecting the templated return type. */
         return $this->createStatementPool($sql, $this->prepareStatement(...));
@@ -373,7 +373,7 @@ abstract class ConnectionPool implements Pool
      *
      * @throws SqlException
      */
-    private function prepareStatement(string $sql): Statement
+    private function prepareStatement(string $sql): SqlStatement
     {
         $connection = $this->pop();
 
@@ -387,7 +387,7 @@ abstract class ConnectionPool implements Pool
         return $this->createStatement($statement, fn () => $this->push($connection));
     }
 
-    public function beginTransaction(): Transaction
+    public function beginTransaction(): SqlTransaction
     {
         $connection = $this->pop();
 

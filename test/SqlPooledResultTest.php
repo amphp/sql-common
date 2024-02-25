@@ -3,11 +3,11 @@
 namespace Amp\Sql\Common\Test;
 
 use Amp\PHPUnit\AsyncTestCase;
-use Amp\Sql\Common\Test\Stub\StubPooledResult;
-use Amp\Sql\Common\Test\Stub\StubResult;
+use Amp\Sql\Common\Test\Stub\StubSqlPooledResult;
+use Amp\Sql\Common\Test\Stub\StubSqlResult;
 use function Amp\delay;
 
-class PooledResultTest extends AsyncTestCase
+class SqlPooledResultTest extends AsyncTestCase
 {
     public function testIdleConnectionsRemovedAfterTimeout()
     {
@@ -19,9 +19,9 @@ class PooledResultTest extends AsyncTestCase
 
         $expectedRow = ['column' => 'value'];
 
-        $secondResult = new StubResult([$expectedRow]);
-        $firstResult = new StubResult([$expectedRow], $secondResult);
-        $pooledResult = new StubPooledResult(new StubResult([$expectedRow], $firstResult), $release);
+        $secondResult = new StubSqlResult([$expectedRow]);
+        $firstResult = new StubSqlResult([$expectedRow], $secondResult);
+        $pooledResult = new StubSqlPooledResult(new StubSqlResult([$expectedRow], $firstResult), $release);
 
         $iterator = $pooledResult->getIterator();
 

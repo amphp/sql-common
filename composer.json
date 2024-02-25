@@ -13,7 +13,7 @@
     "require": {
         "php": ">=8.1",
         "amphp/amp": "^3",
-        "amphp/sql": "^2-beta.6"
+        "amphp/sql": "2.x-dev"
     },
     "require-dev": {
         "amphp/php-cs-fixer-config": "^2",

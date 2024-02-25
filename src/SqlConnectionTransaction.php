@@ -5,23 +5,23 @@ namespace Amp\Sql\Common;
 use Amp\DeferredFuture;
 use Amp\ForbidCloning;
 use Amp\ForbidSerialization;
-use Amp\Sql\Result;
 use Amp\Sql\SqlException;
-use Amp\Sql\Statement;
-use Amp\Sql\Transaction;
-use Amp\Sql\TransactionError;
-use Amp\Sql\TransactionIsolation;
+use Amp\Sql\SqlResult;
+use Amp\Sql\SqlStatement;
+use Amp\Sql\SqlTransaction;
+use Amp\Sql\SqlTransactionError;
+use Amp\Sql\SqlTransactionIsolation;
 use Revolt\EventLoop;
 
 /**
- * @template TResult of Result
- * @template TStatement of Statement<TResult>
- * @template TTransaction of Transaction
- * @template TNestedExecutor of NestableTransactionExecutor<TResult, TStatement>
+ * @template TResult of SqlResult
+ * @template TStatement of SqlStatement<TResult>
+ * @template TTransaction of SqlTransaction
+ * @template TNestedExecutor of SqlNestableTransactionExecutor<TResult, TStatement>
  *
- * @implements Transaction<TResult, TStatement, TTransaction>
+ * @implements SqlTransaction<TResult, TStatement, TTransaction>
  */
-abstract class ConnectionTransaction implements Transaction
+abstract class SqlConnectionTransaction implements SqlTransaction
 {
     use ForbidCloning;
     use ForbidSerialization;
@@ -48,7 +48,7 @@ abstract class ConnectionTransaction implements Transaction
      *
      * @return TResult
      */
-    abstract protected function createResult(Result $result, \Closure $release): Result;
+    abstract protected function createResult(SqlResult $result, \Closure $release): SqlResult;
 
     /**
      * Creates a Statement of the appropriate type using the Statement object returned by the Transaction object and
@@ -61,10 +61,10 @@ abstract class ConnectionTransaction implements Transaction
      * @return TStatement
      */
     abstract protected function createStatement(
-        Statement $statement,
+        SqlStatement $statement,
         \Closure $release,
         \Closure $awaitBusyResource,
-    ): Statement;
+    ): SqlStatement;
 
     /**
      * @param TTransaction $transaction
@@ -75,20 +75,20 @@ abstract class ConnectionTransaction implements Transaction
      * @return TTransaction
      */
     abstract protected function createNestedTransaction(
-        Transaction $transaction,
-        NestableTransactionExecutor $executor,
+        SqlTransaction $transaction,
+        SqlNestableTransactionExecutor $executor,
         string $identifier,
         \Closure $release,
-    ): Transaction;
+    ): SqlTransaction;
 
     /**
      * @param TNestedExecutor $executor
      * @param \Closure():void $release
      */
     public function __construct(
-        private readonly NestableTransactionExecutor $executor,
+        private readonly SqlNestableTransactionExecutor $executor,
         \Closure $release,
-        private readonly TransactionIsolation $isolation,
+        private readonly SqlTransactionIsolation $isolation,
     ) {
         $busy = &$this->busy;
         $refCount = &$this->refCount;
@@ -181,15 +181,15 @@ abstract class ConnectionTransaction implements Transaction
         return $this->active && !$this->executor->isClosed();
     }
 
-    public function getIsolation(): TransactionIsolation
+    public function getIsolation(): SqlTransactionIsolation
     {
         return $this->isolation;
     }
 
     /**
-     * @throws TransactionError If the transaction has been committed or rolled back.
+     * @throws SqlTransactionError If the transaction has been committed or rolled back.
      */
-    public function query(string $sql): Result
+    public function query(string $sql): SqlResult
     {
         $this->awaitPendingNestedTransaction();
 
@@ -205,11 +205,11 @@ abstract class ConnectionTransaction implements Transaction
     }
 
     /**
-     * @throws TransactionError If the transaction has been committed or rolled back.
+     * @throws SqlTransactionError If the transaction has been committed or rolled back.
      *
      * @psalm-suppress InvalidReturnStatement, InvalidReturnType
      */
-    public function prepare(string $sql): Statement
+    public function prepare(string $sql): SqlStatement
     {
         $this->awaitPendingNestedTransaction();
 
@@ -230,9 +230,9 @@ abstract class ConnectionTransaction implements Transaction
     }
 
     /**
-     * @throws TransactionError If the transaction has been committed or rolled back.
+     * @throws SqlTransactionError If the transaction has been committed or rolled back.
      */
-    public function execute(string $sql, array $params = []): Result
+    public function execute(string $sql, array $params = []): SqlResult
     {
         $this->awaitPendingNestedTransaction();
 
@@ -247,7 +247,7 @@ abstract class ConnectionTransaction implements Transaction
         return $this->createResult($result, $this->release);
     }
 
-    public function beginTransaction(): Transaction
+    public function beginTransaction(): SqlTransaction
     {
         $this->awaitPendingNestedTransaction();
 
@@ -268,7 +268,7 @@ abstract class ConnectionTransaction implements Transaction
     /**
      * Commits the transaction and makes it inactive.
      *
-     * @throws TransactionError If the transaction has been committed or rolled back.
+     * @throws SqlTransactionError If the transaction has been committed or rolled back.
      */
     public function commit(): void
     {
@@ -286,7 +286,7 @@ abstract class ConnectionTransaction implements Transaction
     /**
      * Rolls back the transaction and makes it inactive.
      *
-     * @throws TransactionError If the transaction has been committed or rolled back.
+     * @throws SqlTransactionError If the transaction has been committed or rolled back.
      */
     public function rollback(): void
     {
@@ -318,7 +318,7 @@ abstract class ConnectionTransaction implements Transaction
         }
 
         if ($this->isClosed()) {
-            throw new TransactionError("The transaction has been committed or rolled back");
+            throw new SqlTransactionError("The transaction has been committed or rolled back");
         }
     }
 }
