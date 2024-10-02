@@ -262,9 +262,8 @@ abstract class SqlCommonConnectionPool implements SqlConnectionPool
                 if ($this->connections->count() < $this->getConnectionLimit()) {
                     // Max connection count has not been reached, so open another connection.
                     try {
-                        $connection = (
-                            $this->future = async(fn () => $this->connector->connect($this->config))
-                        )->await();
+                        $this->future = async(fn () => $this->connector->connect($this->config));
+                        $connection = $this->future->await();
                         /** @psalm-suppress DocblockTypeContradiction */
                         if (!$connection instanceof SqlLink) {
                             throw new \Error(\sprintf(
@@ -289,10 +288,11 @@ abstract class SqlCommonConnectionPool implements SqlConnectionPool
                 // All possible connections busy, so wait until one becomes available.
                 try {
                     $this->awaitingConnection = new DeferredFuture;
+
+                    $this->future = $this->awaitingConnection->getFuture();
                     // Connection will be pulled from $this->idle when future is resolved.
-                    ($this->future = $this->awaitingConnection->getFuture())->await();
+                    $this->future->await();
                 } finally {
-                    $this->awaitingConnection = null;
                     $this->future = null;
                 }
             }
@@ -319,11 +319,7 @@ abstract class SqlCommonConnectionPool implements SqlConnectionPool
     {
         \assert(isset($this->connections[$connection]), 'Connection is not part of this pool');
 
-        if ($connection->isClosed()) {
-            $this->connections->detach($connection);
-        } else {
-            $this->idle->enqueue($connection);
-        }
+        $this->idle->enqueue($connection);
 
         $this->awaitingConnection?->complete($connection);
         $this->awaitingConnection = null;
