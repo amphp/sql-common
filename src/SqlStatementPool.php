@@ -79,8 +79,6 @@ abstract class SqlStatementPool implements SqlStatement
 
         EventLoop::unreference($timeoutWatcher);
         $this->onClose(static fn () => EventLoop::cancel($timeoutWatcher));
-
-        $this->pool->onClose(static fn () => $onClose->isComplete() || $onClose->complete());
     }
 
     public function __destruct()

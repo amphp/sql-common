@@ -51,6 +51,9 @@ abstract class SqlCommonConnectionPool implements SqlConnectionPool
 
     private readonly DeferredFuture $onClose;
 
+    /** @var \WeakMap<TStatement, true> */
+    private \WeakMap $statements;
+
     /**
      * Creates a Statement of the appropriate type using the Statement object returned by the Link object and the
      * given release callable.
@@ -114,6 +117,10 @@ abstract class SqlCommonConnectionPool implements SqlConnectionPool
         }
 
         $this->connections = $connections = new \SplObjectStorage();
+
+        /** @var \WeakMap<TStatement, true> For Psalm. */
+        $this->statements = new \WeakMap();
+
         $this->idle = $idle = new \SplQueue();
         $this->onClose = new DeferredFuture();
 
@@ -205,6 +212,10 @@ abstract class SqlCommonConnectionPool implements SqlConnectionPool
             // Avoid first class callable syntax to avoid psalm crash
             /** @psalm-suppress MissingClosureReturnType */
             async(fn () => $connection->close())->ignore();
+        }
+
+        foreach ($this->statements as $statement => $_) {
+            $statement->close();
         }
 
         $this->onClose->complete();
@@ -359,7 +370,12 @@ abstract class SqlCommonConnectionPool implements SqlConnectionPool
     public function prepare(string $sql): SqlStatement
     {
         /** @psalm-suppress InvalidArgument Psalm is not properly detecting the templated return type. */
-        return $this->createStatementPool($sql, $this->prepareStatement(...));
+        $statement = $this->createStatementPool($sql, $this->prepareStatement(...));
+
+        $this->statements[$statement] = true;
+
+        /** @var TStatement $statement Psalm is not properly detecting the templated type. */
+        return $statement;
     }
 
     /**
