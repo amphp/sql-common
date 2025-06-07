@@ -49,4 +49,32 @@ class SqlPooledResultTest extends AsyncTestCase
 
         $this->assertTrue($invoked); // No next result set, so release callback invoked.
     }
+
+    public function testIteratorRetainsReference(): void
+    {
+        $expectedRow = ['column' => 'value'];
+        $expectedRows = [$expectedRow, $expectedRow, $expectedRow];
+        $stubResult = new StubSqlResult([$expectedRow, $expectedRow, $expectedRow]);
+
+        $invoked = false;
+        $release = function () use (&$invoked) {
+            $invoked = true;
+        };
+
+        $iterationCount = 0;
+        foreach ((new StubSqlPooledResult($stubResult, $release)) as $row) {
+            ++$iterationCount;
+
+            delay(0); // Tick event loop to allow entry into disposal function if queued in event loop.
+
+            self::assertSame($expectedRow, $row);
+            self::assertFalse($invoked);
+        }
+
+        self::assertSame(count($expectedRows), $iterationCount);
+
+        delay(0); // Tick event loop to dispose of result set.
+
+        $this->assertTrue($invoked);
+    }
 }
