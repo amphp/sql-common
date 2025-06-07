@@ -71,7 +71,7 @@ class SqlPooledResultTest extends AsyncTestCase
             self::assertFalse($invoked);
         }
 
-        self::assertSame(count($expectedRows), $iterationCount);
+        self::assertSame(\count($expectedRows), $iterationCount);
 
         delay(0); // Tick event loop to dispose of result set.
 
