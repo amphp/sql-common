@@ -84,19 +84,19 @@ class SqlCommonConnectionPoolTest extends AsyncTestCase
             $futures[] = async(fn () => $pool->query("SELECT $i"));
         }
 
-        $this->assertCount($count, Future\await($futures));
+        self::assertCount($count, Future\await($futures));
 
         unset($futures); // Remove references to results so they are destructed.
 
-        $this->assertSame($count, $pool->getConnectionCount());
+        self::assertSame($count, $pool->getConnectionCount());
 
         delay(1);
 
-        $this->assertSame($count, $pool->getConnectionCount());
+        self::assertSame($count, $pool->getConnectionCount());
 
         delay(1);
 
-        $this->assertSame(0, $pool->getConnectionCount());
+        self::assertSame(0, $pool->getConnectionCount());
     }
 
     public function testMaxConnectionCount()
@@ -118,6 +118,6 @@ class SqlCommonConnectionPoolTest extends AsyncTestCase
 
         Future\await($futures);
 
-        $this->assertSame($maxConnections, $pool->getConnectionCount());
+        self::assertSame($maxConnections, $pool->getConnectionCount());
     }
 }

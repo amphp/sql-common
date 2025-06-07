@@ -32,15 +32,15 @@ class SqlStatementPoolTest extends AsyncTestCase
             ->setConstructorArgs([$pool, 'SELECT 1', $this->createCallback(1, fn () => $statement)])
             ->getMockForAbstractClass();
 
-        $this->assertFalse($statementPool->isClosed());
-        $this->assertSame(\time(), $statementPool->getLastUsedAt());
+        self::assertFalse($statementPool->isClosed());
+        self::assertSame(\time(), $statementPool->getLastUsedAt());
 
         delay(1.5); // Give timeout watcher enough time to execute.
 
         $statementPool->execute();
 
-        $this->assertFalse($statementPool->isClosed());
-        $this->assertSame(\time(), $statementPool->getLastUsedAt());
+        self::assertFalse($statementPool->isClosed());
+        self::assertSame(\time(), $statementPool->getLastUsedAt());
     }
 
     public function testIdleStatementsRemovedAfterTimeout()
@@ -69,8 +69,8 @@ class SqlStatementPoolTest extends AsyncTestCase
             ->setConstructorArgs([$pool, 'SELECT 1', $this->createCallback(2, $createStatement)])
             ->getMockForAbstractClass();
 
-        $this->assertFalse($statementPool->isClosed());
-        $this->assertSame(\time(), $statementPool->getLastUsedAt());
+        self::assertFalse($statementPool->isClosed());
+        self::assertSame(\time(), $statementPool->getLastUsedAt());
 
         $statementPool->execute();
 
@@ -78,7 +78,7 @@ class SqlStatementPoolTest extends AsyncTestCase
 
         $statementPool->execute();
 
-        $this->assertFalse($statementPool->isClosed());
-        $this->assertSame(\time(), $statementPool->getLastUsedAt());
+        self::assertFalse($statementPool->isClosed());
+        self::assertSame(\time(), $statementPool->getLastUsedAt());
     }
 }

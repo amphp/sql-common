@@ -26,7 +26,7 @@ class RetrySqlConnectorTest extends AsyncTestCase
 
         $connection = $retry->connect($config);
 
-        $this->assertInstanceOf(SqlConnection::class, $connection);
+        self::assertInstanceOf(SqlConnection::class, $connection);
     }
 
     public function testFirstTryFailConnect()
@@ -53,7 +53,7 @@ class RetrySqlConnectorTest extends AsyncTestCase
 
         $connection = $retry->connect($config);
 
-        $this->assertInstanceOf(SqlConnection::class, $connection);
+        self::assertInstanceOf(SqlConnection::class, $connection);
     }
 
     public function testFailingConnect()

@@ -25,36 +25,36 @@ class SqlPooledResultTest extends AsyncTestCase
 
         $iterator = $pooledResult->getIterator();
 
-        $this->assertSame($expectedRow, $iterator->current());
+        self::assertSame($expectedRow, $iterator->current());
 
-        $this->assertFalse($invoked);
+        self::assertFalse($invoked);
 
         $iterator->next();
-        $this->assertFalse($iterator->valid());
+        self::assertFalse($iterator->valid());
 
-        $this->assertFalse($invoked); // Next result set available.
+        self::assertFalse($invoked); // Next result set available.
 
         $pooledResult = $pooledResult->getNextResult();
         $iterator = $pooledResult->getIterator();
 
-        $this->assertSame($expectedRow, $iterator->current());
+        self::assertSame($expectedRow, $iterator->current());
 
         $iterator->next();
-        $this->assertFalse($iterator->valid());
+        self::assertFalse($iterator->valid());
 
         $pooledResult = $pooledResult->getNextResult();
         unset($pooledResult); // Manually unset to trigger destructor.
 
         delay(0); // Tick event loop to dispose of result set.
 
-        $this->assertTrue($invoked); // No next result set, so release callback invoked.
+        self::assertTrue($invoked); // No next result set, so release callback invoked.
     }
 
     public function testIteratorRetainsReference(): void
     {
         $expectedRow = ['column' => 'value'];
         $expectedRows = [$expectedRow, $expectedRow, $expectedRow];
-        $stubResult = new StubSqlResult([$expectedRow, $expectedRow, $expectedRow]);
+        $stubResult = new StubSqlResult($expectedRows);
 
         $invoked = false;
         $release = function () use (&$invoked) {
@@ -75,6 +75,6 @@ class SqlPooledResultTest extends AsyncTestCase
 
         delay(0); // Tick event loop to dispose of result set.
 
-        $this->assertTrue($invoked);
+        self::assertTrue($invoked);
     }
 }
