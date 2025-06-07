@@ -86,7 +86,8 @@ abstract class SqlPooledResult implements SqlResult, \IteratorAggregate
 
     public function getIterator(): \Traversable
     {
-        return $this->iterator;
+        // Using a Generator to keep a reference to $this.
+        yield from $this->iterator;
     }
 
     public function fetchRow(): ?array
