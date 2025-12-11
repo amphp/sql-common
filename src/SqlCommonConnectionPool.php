@@ -138,8 +138,8 @@ abstract class SqlCommonConnectionPool implements SqlConnectionPool
 
                 // Close connection and remove it from the pool.
                 $idle->shift();
-                /** @psalm-suppress InvalidArgument SplObjectStorage::detach() expects an argument. */
-                $connections->detach($connection);
+                /** @psalm-suppress InvalidArgument SplObjectStorage::offsetUnset() expects an argument. */
+                $connections->offsetUnset($connection);
                 $connection->close();
             }
         });
@@ -232,7 +232,7 @@ abstract class SqlCommonConnectionPool implements SqlConnectionPool
     public function extractConnection(): SqlConnection
     {
         $connection = $this->pop();
-        $this->connections->detach($connection);
+        $this->connections->offsetUnset($connection);
         return $connection;
     }
 
@@ -292,7 +292,7 @@ abstract class SqlCommonConnectionPool implements SqlConnectionPool
                         break 2; // Break to throwing exception.
                     }
 
-                    $this->connections->attach($connection);
+                    $this->connections->offsetSet($connection);
                     return $connection;
                 }
 
@@ -315,7 +315,7 @@ abstract class SqlCommonConnectionPool implements SqlConnectionPool
                 return $connection;
             }
 
-            $this->connections->detach($connection);
+            $this->connections->offsetUnset($connection);
         } while (!$this->isClosed());
 
         throw new SqlException("Pool closed before an active connection could be obtained");
