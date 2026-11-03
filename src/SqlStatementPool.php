@@ -108,12 +108,24 @@ abstract class SqlStatementPool implements SqlStatement
             throw $exception;
         }
 
-        return $this->createResult($result, fn () => $this->push($statement));
+        // Drop the closure's statement reference once released: if push() declines to
+        // retain the statement, a lingering reference here would keep the underlying
+        // connection checked out for as long as the result object stays alive.
+        $release = function () use (&$statement): void {
+            if ($statement !== null) {
+                $this->push($statement);
+                $statement = null;
+            }
+        };
+
+        return $this->createResult($result, $release);
     }
 
     /**
      * Only retains statements if less than 10% of the pool is consumed by this statement and the pool has
-     * available connections.
+     * available connections. A statement that is not retained is closed so that its connection returns to
+     * the pool immediately; otherwise a saturated pool (e.g. a single-connection pool) deadlocks, since
+     * the next execute() waits for a connection that only this statement's destruction would release.
      *
      * @param TStatement $statement
      */
@@ -122,10 +134,12 @@ abstract class SqlStatementPool implements SqlStatement
         $maxConnections = $this->pool->getConnectionLimit();
 
         if ($this->statements->count() > ($maxConnections / 10)) {
+            $statement->close();
             return;
         }
 
         if ($maxConnections === $this->pool->getConnectionCount() && $this->pool->getIdleConnectionCount() === 0) {
+            $statement->close();
             return;
         }
 
