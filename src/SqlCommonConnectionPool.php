@@ -207,8 +207,9 @@ abstract class SqlCommonConnectionPool implements SqlConnectionPool
     /**
      * Close all connections in the pool. No further queries may be made after a pool is closed.
      *
-     * This method does not block. Callbacks registered with {@see onClose()} are invoked once every connection
-     * in the pool (including one being opened when close() was called) has finished closing.
+     * This method does not block. Callbacks registered with {@see onClose()} are invoked only once every
+     * connection's close() (and any pending connect()) has settled, so a driver whose close() can hang
+     * delays onClose indefinitely.
      */
     public function close(): void
     {
@@ -320,7 +321,8 @@ abstract class SqlCommonConnectionPool implements SqlConnectionPool
                     }
 
                     if ($this->isClosed()) {
-                        break 2; // close() closes this connection. Break to throwing exception.
+                        // close() captured $this->connecting, so it closes this connection. Break to throwing exception.
+                        break 2;
                     }
 
                     $this->connections->offsetSet($connection);
