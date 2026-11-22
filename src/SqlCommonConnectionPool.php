@@ -49,6 +49,11 @@ abstract class SqlCommonConnectionPool implements SqlConnectionPool
     /** @var DeferredFuture<TConnection>|null */
     private ?DeferredFuture $awaitingConnection = null;
 
+    /** @var Future<TConnection>|null Pending connection attempt, if any. */
+    private ?Future $connecting = null;
+
+    private bool $closed = false;
+
     private readonly DeferredFuture $onClose;
 
     /** @var \WeakMap<TStatement, true> */
@@ -191,7 +196,7 @@ abstract class SqlCommonConnectionPool implements SqlConnectionPool
 
     public function isClosed(): bool
     {
-        return $this->onClose->isComplete();
+        return $this->closed;
     }
 
     public function onClose(\Closure $onClose): void
@@ -201,27 +206,50 @@ abstract class SqlCommonConnectionPool implements SqlConnectionPool
 
     /**
      * Close all connections in the pool. No further queries may be made after a pool is closed.
+     *
+     * This method does not block. Callbacks registered with {@see onClose()} are invoked once every connection
+     * in the pool (including one being opened when close() was called) has finished closing.
      */
     public function close(): void
     {
-        if ($this->onClose->isComplete()) {
+        if ($this->closed) {
             return;
         }
 
+        $this->closed = true;
+
+        $futures = [];
         foreach ($this->connections as $connection) {
             // Avoid first class callable syntax to avoid psalm crash
             /** @psalm-suppress MissingClosureReturnType */
-            async(fn () => $connection->close())->ignore();
+            $futures[] = async(static fn () => $connection->close());
+        }
+
+        if ($this->connecting) {
+            $connecting = $this->connecting;
+            // The connection is not yet part of the pool, and pop() will not add it.
+            $futures[] = async(static fn () => $connecting->await()->close());
         }
 
         foreach ($this->statements as $statement => $_) {
             $statement->close();
         }
 
-        $this->onClose->complete();
-
         $this->awaitingConnection?->error(new SqlException("Connection pool closed"));
         $this->awaitingConnection = null;
+
+        $onClose = $this->onClose;
+
+        if (!$futures) {
+            $onClose->complete();
+            return;
+        }
+
+        // Complete onClose only once all connections have been closed, whether or not closing succeeded.
+        async(static function () use ($futures, $onClose): void {
+            Future\awaitAll($futures);
+            $onClose->complete();
+        })->ignore();
     }
 
     /**
@@ -272,8 +300,12 @@ abstract class SqlCommonConnectionPool implements SqlConnectionPool
             while ($this->idle->isEmpty()) {
                 if ($this->connections->count() < $this->getConnectionLimit()) {
                     // Max connection count has not been reached, so open another connection.
+                    if ($this->isClosed()) {
+                        break 2; // Pool closed while awaiting another connection attempt.
+                    }
+
                     try {
-                        $this->future = async(fn () => $this->connector->connect($this->config));
+                        $this->future = $this->connecting = async(fn () => $this->connector->connect($this->config));
                         $connection = $this->future->await();
                         /** @psalm-suppress DocblockTypeContradiction */
                         if (!$connection instanceof SqlLink) {
@@ -284,12 +316,11 @@ abstract class SqlCommonConnectionPool implements SqlConnectionPool
                             ));
                         }
                     } finally {
-                        $this->future = null;
+                        $this->future = $this->connecting = null;
                     }
 
                     if ($this->isClosed()) {
-                        $connection->close();
-                        break 2; // Break to throwing exception.
+                        break 2; // close() closes this connection. Break to throwing exception.
                     }
 
                     $this->connections->offsetSet($connection);
