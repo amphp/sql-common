@@ -2,6 +2,7 @@
 
 namespace Amp\Sql\Common\Test;
 
+use Amp\DeferredFuture;
 use Amp\Future;
 use Amp\PHPUnit\AsyncTestCase;
 use Amp\Sql\Common\SqlCommonConnectionPool;
@@ -9,6 +10,7 @@ use Amp\Sql\Common\Test\Stub\StubSqlPooledResult;
 use Amp\Sql\SqlConfig;
 use Amp\Sql\SqlConnection;
 use Amp\Sql\SqlConnector;
+use Amp\Sql\SqlException;
 use Amp\Sql\SqlResult;
 use function Amp\async;
 use function Amp\delay;
@@ -119,5 +121,185 @@ class SqlCommonConnectionPoolTest extends AsyncTestCase
         Future\await($futures);
 
         self::assertSame($maxConnections, $pool->getConnectionCount());
+    }
+
+    /**
+     * Each connect() waits for $connectGate, each connection's close() waits for $closeGate.
+     *
+     * @param \Closure():void $onConnectionClose Invoked from each connection's close(), after $closeGate.
+     */
+    private function createGatedConnector(
+        Future $closeGate,
+        \Closure $onConnectionClose,
+        ?Future $connectGate = null,
+        int &$connectCount = 0,
+    ): SqlConnector {
+        $connector = $this->createMock(SqlConnector::class);
+        $connector->method('connect')
+            ->willReturnCallback(function () use ($closeGate, $onConnectionClose, $connectGate, &$connectCount): SqlConnection {
+                ++$connectCount;
+                $connectGate?->await();
+
+                $closed = false;
+                $connection = $this->createMock(SqlConnection::class);
+                $connection->method('getLastUsedAt')->willReturn(\time());
+                $connection->method('isClosed')->willReturnCallback(function () use (&$closed) {
+                    return $closed;
+                });
+                $connection->method('query')->willReturnCallback(fn () => $this->createMock(SqlResult::class));
+                $connection->method('close')->willReturnCallback(function () use (&$closed, $closeGate, $onConnectionClose) {
+                    if ($closed) {
+                        return;
+                    }
+
+                    $closed = true;
+                    $closeGate->await(); // Closing takes time, e.g. waiting for a child process to exit.
+                    $onConnectionClose();
+                });
+
+                return $connection;
+            });
+
+        return $connector;
+    }
+
+    private function awaitOnClose(SqlCommonConnectionPool $pool): void
+    {
+        $deferred = new DeferredFuture();
+        $pool->onClose($deferred->complete(...));
+        $deferred->getFuture()->await();
+    }
+
+    public function testOnCloseInvokedAfterConnectionsClosed()
+    {
+        $closeGate = new DeferredFuture();
+        $closedConnections = 0;
+        $pool = $this->createPool($this->createGatedConnector($closeGate->getFuture(), function () use (&$closedConnections) {
+            ++$closedConnections;
+        }));
+
+        Future\await([
+            async(fn () => $pool->query("SELECT 1")),
+            async(fn () => $pool->query("SELECT 2")),
+        ]);
+
+        self::assertSame(2, $pool->getConnectionCount());
+
+        $onCloseInvoked = false;
+        $pool->onClose(function () use (&$onCloseInvoked) {
+            $onCloseInvoked = true;
+        });
+
+        $pool->close();
+
+        self::assertTrue($pool->isClosed());
+
+        delay(0); // Let connections start closing.
+        self::assertFalse($onCloseInvoked);
+        self::assertSame(0, $closedConnections);
+
+        $closeGate->complete();
+        $this->awaitOnClose($pool);
+
+        self::assertTrue($onCloseInvoked);
+        self::assertSame(2, $closedConnections);
+    }
+
+    public function testOnCloseInvokedWhenConnectionCloseFails()
+    {
+        $pool = $this->createPool($this->createGatedConnector(Future::complete(), function () {
+            throw new SqlException("Close failed");
+        }));
+
+        $pool->query("SELECT 1");
+
+        $pool->close();
+
+        $this->setTimeout(1);
+        $this->awaitOnClose($pool);
+
+        self::assertTrue($pool->isClosed());
+    }
+
+    public function testOnCloseAwaitsConnectionOpenedDuringClose()
+    {
+        $connectGate = new DeferredFuture();
+        $closeGate = new DeferredFuture();
+        $closedConnections = 0;
+        $pool = $this->createPool($this->createGatedConnector($closeGate->getFuture(), function () use (&$closedConnections) {
+            ++$closedConnections;
+        }, $connectGate->getFuture()));
+
+        $query = async(fn () => $pool->query("SELECT 1"));
+
+        delay(0); // Connection attempt is pending on $connectGate.
+
+        $pool->close();
+
+        $onCloseInvoked = false;
+        $pool->onClose(function () use (&$onCloseInvoked) {
+            $onCloseInvoked = true;
+        });
+
+        $connectGate->complete();
+        delay(0);
+        self::assertFalse($onCloseInvoked);
+
+        $closeGate->complete();
+        $this->awaitOnClose($pool);
+
+        self::assertSame(1, $closedConnections);
+
+        $this->expectException(SqlException::class);
+        $query->await();
+    }
+
+    public function testNoConnectionOpenedAfterClose()
+    {
+        $connectGate = new DeferredFuture();
+        $connectCount = 0;
+        $pool = $this->createPool($this->createGatedConnector(Future::complete(), static fn () => null, $connectGate->getFuture(), $connectCount));
+
+        // The second query waits for the first connection attempt to finish before opening its own.
+        $queries = [
+            async(fn () => $pool->query("SELECT 1")),
+            async(fn () => $pool->query("SELECT 2")),
+        ];
+
+        delay(0); // First connection attempt is pending on $connectGate.
+
+        $pool->close();
+        $connectGate->complete();
+
+        $this->awaitOnClose($pool);
+
+        foreach ($queries as $query) {
+            try {
+                $query->await();
+                self::fail("Query should fail once the pool is closed");
+            } catch (SqlException) {
+                // Expected.
+            }
+        }
+
+        self::assertSame(1, $connectCount);
+    }
+
+    public function testCloseIsIdempotent()
+    {
+        $closedConnections = 0;
+        $pool = $this->createPool($this->createGatedConnector(Future::complete(), function () use (&$closedConnections) {
+            ++$closedConnections;
+        }));
+
+        $pool->query("SELECT 1");
+
+        $pool->close();
+        $pool->close();
+
+        $this->awaitOnClose($pool);
+        $pool->close();
+
+        self::assertSame(1, $closedConnections);
     }
 }
